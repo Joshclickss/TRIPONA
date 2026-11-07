@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Environment Files (Keep secrets private)
+.env
+.env.*
+!.env.example
+server/.env
+client/.env
+server/.env.local
+client/.env.local
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+
+# Operating System & IDE
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Service Account Keys
+*serviceAccount*.json
+*firebase-admin*.json
+serviceAccountKey.json
