@@ -114,9 +114,11 @@ mongoose.connect(MONGODB_URI)
     console.error('❌ MongoDB Connection Error:', err.message);
   });
 
-// Bind server
-const server = app.listen(PORT, () => {
-  console.log(`🔒 TRIPONA Secure Server running on http://localhost:${PORT}`);
-});
+// Bind server in standalone/local environments (avoid port binding on Vercel Serverless)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🔒 TRIPONA Secure Server running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;

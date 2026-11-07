@@ -1,6 +1,7 @@
 {
   "name": "tripona",
   "version": "1.0.0",
+  "type": "module",
   "description": "TRIPONA – Explore Beyond Boundaries. Premium International AI Travel Planning Platform.",
   "scripts": {
     "dev": "cd client && npm run dev",
@@ -9,7 +10,24 @@
     "start": "npm run dev",
     "build": "cd client && npm run build"
   },
-  "keywords": ["travel", "ai", "gemini", "mern", "react", "tripona"],
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.7.3",
+    "firebase-admin": "^14.5.0",
+    "helmet": "^8.3.0",
+    "mongoose": "^8.9.5"
+  },
+  "keywords": [
+    "travel",
+    "ai",
+    "gemini",
+    "mern",
+    "react",
+    "tripona"
+  ],
   "author": "TRIPONA",
   "license": "ISC"
 }
