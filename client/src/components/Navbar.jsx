@@ -34,16 +34,13 @@ export default function Navbar({
         {/* Left: TRIPONA.in Logo with Glowing Cyan / Purple Accent */}
         <a
           href="#"
-          className="flex items-center gap-2.5 px-4 py-2 rounded-full glass-panel shadow-2xl transition-all duration-300 group hover:border-[#A855F7]/40 backdrop-blur-xl border border-white/10"
+          className="flex items-center transition-all duration-300 group"
         >
-          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#A855F7] via-[#EC4899] to-[#06B6D4] p-[1.5px] flex items-center justify-center shadow-[0_0_15px_rgba(168,85,247,0.5)]">
-            <div className="w-full h-full rounded-full bg-[#08090A] flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-[#06B6D4] animate-pulse" />
-            </div>
-          </div>
-          <span className="font-brand text-lg font-bold tracking-[0.18em] text-white group-hover:text-[#A855F7] transition-colors">
-            TRIPONA<span className="text-[#06B6D4] text-xs font-normal">.in</span>
-          </span>
+          <img
+            src="/tripona_logo.png"
+            alt="TRIPONA"
+            className="h-10 w-auto object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.4)] group-hover:drop-shadow-[0_0_12px_rgba(6,182,212,0.5)] transition-all duration-300"
+          />
         </a>
 
         {/* Right: The 3 Primary Hero Navigation Actions */}

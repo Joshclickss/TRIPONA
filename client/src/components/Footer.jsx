@@ -69,15 +69,12 @@ export default function Footer() {
           
           {/* Brand Info (4 Cols) */}
           <div className="col-span-2 md:col-span-4 space-y-4">
-            <a href="#" className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#9333EA] via-[#EC4899] to-[#F97316] p-[1px] flex items-center justify-center">
-                <div className="w-full h-full rounded-full bg-[#050505] flex items-center justify-center">
-                  <div className="w-2 h-2 rounded-full bg-pink-400" />
-                </div>
-              </div>
-              <span className="font-brand text-2xl font-bold tracking-tight text-white">
-                TRIPONA<span className="text-[#A9DDF0]">.in</span>
-              </span>
+            <a href="#" className="flex items-center">
+              <img
+                src="/tripona_logo.png"
+                alt="TRIPONA"
+                className="h-12 w-auto object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.35)]"
+              />
             </a>
             
             <p className="text-xs sm:text-sm text-[#A5A5A5] leading-relaxed max-w-xs">
