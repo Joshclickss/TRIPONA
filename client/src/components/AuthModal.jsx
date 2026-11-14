@@ -136,8 +136,21 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
         )}
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs leading-relaxed">
-            {error}
+          <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs leading-relaxed space-y-1">
+            <div className="font-medium">{error}</div>
+            {error.includes('Firebase') && (
+              <p className="text-[11px] text-white/70">
+                To enable Google OAuth popups for this domain, add <code className="text-cyan-300 bg-black/40 px-1 py-0.5 rounded">tripona.joshclickss.workers.dev</code> in{' '}
+                <a
+                  href="https://console.firebase.google.com/project/tripona-cf1c6/authentication/settings"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300 underline font-semibold"
+                >
+                  Firebase Console &rarr; Authorized Domains
+                </a>.
+              </p>
+            )}
           </div>
         )}
 
