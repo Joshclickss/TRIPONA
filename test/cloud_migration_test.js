@@ -117,13 +117,13 @@ assert(ALLOWED_IMAGE_TYPES.includes(validImage.type) && validImage.size <= MAX_I
 // ----------------------------------------------------
 console.log('\n📌 [Test Group 4] Verifying Cloudflare Pages Configuration...');
 
-const redirectsFile = path.join(rootDir, 'client', 'public', '_redirects');
-assert(fs.existsSync(redirectsFile), 'Cloudflare _redirects SPA rule file exists in client/public');
-const redirectsContent = fs.readFileSync(redirectsFile, 'utf8');
-assert(redirectsContent.includes('/*') && redirectsContent.includes('/index.html'), '_redirects forwards all routes to /index.html 200');
-
 const wranglerFile = path.join(rootDir, 'wrangler.toml');
 assert(fs.existsSync(wranglerFile), 'wrangler.toml configuration exists for Cloudflare deployment');
+const wranglerContent = fs.readFileSync(wranglerFile, 'utf8');
+assert(wranglerContent.includes('not_found_handling = "single-page-application"') || wranglerContent.includes('worker.js'), 'Cloudflare SPA routing is configured');
+
+const workerFile = path.join(rootDir, 'worker.js');
+assert(fs.existsSync(workerFile), 'Root worker.js SPA handler exists');
 
 const envExample = path.join(rootDir, '.env.example');
 assert(fs.existsSync(envExample), 'Root .env.example exists');
