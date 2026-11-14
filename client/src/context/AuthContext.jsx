@@ -213,7 +213,7 @@ export const AuthProvider = ({ children }) => {
           photo_url: newUser.photoURL,
           role: 'user',
           updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).catch(e => console.warn('Supabase sync notice:', e));
+        }, { onConflict: 'id' }).then(() => {}).catch(e => console.warn('Supabase sync notice:', e));
       }
 
       await syncUserWithBackend(newUser, idToken);
@@ -269,7 +269,7 @@ export const AuthProvider = ({ children }) => {
           photo_url: loggedUser.photoURL,
           role: 'user',
           updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).catch(e => console.warn('Supabase sync notice:', e));
+        }, { onConflict: 'id' }).then(() => {}).catch(e => console.warn('Supabase sync notice:', e));
       }
 
       await syncUserWithBackend(loggedUser, idToken);
@@ -343,7 +343,7 @@ export const AuthProvider = ({ children }) => {
         country: updates.country,
         currency: updates.currency,
         updated_at: new Date().toISOString()
-      }).eq('id', user.uid).catch(() => {});
+      }).eq('id', user.uid).then(() => {}).catch(() => {});
     }
 
     try {
