@@ -260,7 +260,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'photo_url', NEW.raw_user_meta_data->>'avatar_url', 'https://ui-avatars.com/api/?name=' || urlencode(split_part(NEW.email, '@', 1)) || '&background=527F91&color=fff'),
+    COALESCE(NEW.raw_user_meta_data->>'photo_url', NEW.raw_user_meta_data->>'avatar_url', 'https://ui-avatars.com/api/?name=' || split_part(NEW.email, '@', 1) || '&background=527F91&color=fff'),
     'user'
   )
   ON CONFLICT (id) DO UPDATE SET

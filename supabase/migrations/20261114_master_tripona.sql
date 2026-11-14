@@ -305,7 +305,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'photo_url', NEW.raw_user_meta_data->>'avatar_url', 'https://ui-avatars.com/api/?name=' || urlencode(split_part(NEW.email, '@', 1)) || '&background=527F91&color=fff'),
+    COALESCE(NEW.raw_user_meta_data->>'photo_url', NEW.raw_user_meta_data->>'avatar_url', 'https://ui-avatars.com/api/?name=' || split_part(NEW.email, '@', 1) || '&background=527F91&color=fff'),
     'user'
   )
   ON CONFLICT (id) DO UPDATE SET
@@ -336,41 +336,61 @@ ALTER TABLE public.travel_intelligence_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.api_cache ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Own profile or admin
+DROP POLICY IF EXISTS "Profiles read" ON public.profiles;
 CREATE POLICY "Profiles read" ON public.profiles FOR SELECT USING (auth.uid() = id OR public.is_admin());
+DROP POLICY IF EXISTS "Profiles update" ON public.profiles;
 CREATE POLICY "Profiles update" ON public.profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Profiles insert" ON public.profiles;
 CREATE POLICY "Profiles insert" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Destinations & World Cities: Public read, admin write
+DROP POLICY IF EXISTS "Public read destinations" ON public.destinations;
 CREATE POLICY "Public read destinations" ON public.destinations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin write destinations" ON public.destinations;
 CREATE POLICY "Admin write destinations" ON public.destinations FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
+DROP POLICY IF EXISTS "Public read world_cities" ON public.world_cities;
 CREATE POLICY "Public read world_cities" ON public.world_cities FOR SELECT USING (true);
 
 -- Saved Destinations: Own only
+DROP POLICY IF EXISTS "Users read saved destinations" ON public.saved_destinations;
 CREATE POLICY "Users read saved destinations" ON public.saved_destinations FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users write saved destinations" ON public.saved_destinations;
 CREATE POLICY "Users write saved destinations" ON public.saved_destinations FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Trips: Own or public
+DROP POLICY IF EXISTS "Trips read" ON public.trips;
 CREATE POLICY "Trips read" ON public.trips FOR SELECT USING (auth.uid() = user_id OR is_public = true OR public.is_admin());
+DROP POLICY IF EXISTS "Trips write" ON public.trips;
 CREATE POLICY "Trips write" ON public.trips FOR ALL USING (auth.uid() = user_id OR public.is_admin()) WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 -- Bookings: Own or admin
+DROP POLICY IF EXISTS "Bookings read" ON public.bookings;
 CREATE POLICY "Bookings read" ON public.bookings FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+DROP POLICY IF EXISTS "Bookings write" ON public.bookings;
 CREATE POLICY "Bookings write" ON public.bookings FOR ALL USING (auth.uid() = user_id OR public.is_admin()) WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 -- Expenses: Own only
+DROP POLICY IF EXISTS "Expenses read" ON public.expenses;
 CREATE POLICY "Expenses read" ON public.expenses FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Expenses write" ON public.expenses;
 CREATE POLICY "Expenses write" ON public.expenses FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Checklists: Own only
+DROP POLICY IF EXISTS "Checklists read" ON public.checklists;
 CREATE POLICY "Checklists read" ON public.checklists FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Checklists write" ON public.checklists;
 CREATE POLICY "Checklists write" ON public.checklists FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Intelligence & API Cache: Public read, authenticated/server write
+DROP POLICY IF EXISTS "Cache read" ON public.travel_intelligence_cache;
 CREATE POLICY "Cache read" ON public.travel_intelligence_cache FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Cache write" ON public.travel_intelligence_cache;
 CREATE POLICY "Cache write" ON public.travel_intelligence_cache FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Api cache read" ON public.api_cache;
 CREATE POLICY "Api cache read" ON public.api_cache FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Api cache write" ON public.api_cache;
 CREATE POLICY "Api cache write" ON public.api_cache FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- ============================================================================
@@ -379,5 +399,7 @@ CREATE POLICY "Api cache write" ON public.api_cache FOR ALL TO authenticated USI
 INSERT INTO storage.buckets (id, name, public) VALUES ('tripona-media', 'tripona-media', true) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('tripona-vouchers', 'tripona-vouchers', false) ON CONFLICT (id) DO NOTHING;
 
+DROP POLICY IF EXISTS "Public media files accessible by all" ON storage.objects;
 CREATE POLICY "Public media files accessible by all" ON storage.objects FOR SELECT USING (bucket_id = 'tripona-media');
+DROP POLICY IF EXISTS "Authenticated users upload media" ON storage.objects;
 CREATE POLICY "Authenticated users upload media" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'tripona-media');
