@@ -142,7 +142,7 @@ export default function AuthModal({ isOpen, onClose }) {
               <p className="text-[11px] text-white/70">
                 To enable Google OAuth popups for this domain, add <code className="text-cyan-300 bg-black/40 px-1 py-0.5 rounded">tripona.joshclickss.workers.dev</code> in{' '}
                 <a
-                  href="https://console.firebase.google.com/project/tripona-cf1c6/authentication/settings"
+                  href="https://console.firebase.google.com/project/triponaai/authentication/settings"
                   target="_blank"
                   rel="noreferrer"
                   className="text-cyan-400 hover:text-cyan-300 underline font-semibold"

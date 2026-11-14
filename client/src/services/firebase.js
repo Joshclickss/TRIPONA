@@ -13,13 +13,13 @@ import {
 
 // Real Firebase configuration for TRIPONA
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCyaPykGl46m-QKIkYZ8_BVNQUhso_WaQM",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "tripona-cf1c6.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "tripona-cf1c6",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "tripona-cf1c6.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "65805959142",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:65805959142:web:a78cd58a54017bb52e2027",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-HFLBR8F7RB"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBUuMfSbCFlKM4yLc3G0ogjpHh5YyNWUD4",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "triponaai.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "triponaai",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "triponaai.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "245608173688",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:245608173688:web:27ac957a1aada1f4bb1d8d",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-CYTYKVL0SS"
 };
 
 let app;

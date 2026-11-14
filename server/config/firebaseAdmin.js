@@ -7,7 +7,7 @@ let isFirebaseAdminInitialized = false;
 try {
   const apps = admin.apps || [];
   if (apps.length === 0) {
-    const projectId = process.env.FIREBASE_PROJECT_ID || 'tripona-cf1c6';
+    const projectId = process.env.FIREBASE_PROJECT_ID || 'triponaai';
 
     if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
       // Full service account credential mode
