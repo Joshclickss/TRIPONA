@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { databaseService } from '../services/databaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 const TripContext = createContext();
 
@@ -14,7 +16,6 @@ export const useTrip = () => {
 export const TripProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
 
-  // Real initial states: strictly empty arrays (NO demo trips, expenses, or checklists!)
   const [trips, setTrips] = useState([]);
   const [activeTrip, setActiveTrip] = useState(null);
   const [expenses, setExpenses] = useState([]);
@@ -33,7 +34,7 @@ export const TripProvider = ({ children }) => {
     };
   };
 
-  // Fetch real trips from MongoDB whenever user auth changes
+  // Fetch real trips whenever user auth changes
   useEffect(() => {
     if (!isAuthenticated || !user?.uid) {
       setTrips([]);
@@ -47,40 +48,53 @@ export const TripProvider = ({ children }) => {
     const fetchUserData = async () => {
       setLoadingTrips(true);
       try {
-        // 1. Fetch user's real trips
-        const tripRes = await fetch('/api/trips', { headers: getHeaders() });
-        if (tripRes.ok) {
-          const tripData = await tripRes.json();
-          setTrips(tripData);
-          if (tripData.length > 0) {
-            setActiveTrip(tripData[0]);
-          } else {
-            setActiveTrip(null);
+        if (isSupabaseConfigured) {
+          // Cloud PostgreSQL mode via Supabase
+          const cloudTrips = await databaseService.getTrips(user.uid);
+          setTrips(cloudTrips);
+          if (cloudTrips.length > 0) setActiveTrip(cloudTrips[0]);
+
+          const cloudSaved = await databaseService.getSavedDestinations(user.uid);
+          setSavedDestinationIds(cloudSaved.map(d => d.destination_slug || d.destination_id));
+
+          const cloudChecklists = await databaseService.getChecklists(user.uid);
+          setChecklists(cloudChecklists);
+        } else {
+          // 1. Fetch user's trips from REST backend
+          const tripRes = await fetch('/api/trips', { headers: getHeaders() });
+          if (tripRes.ok) {
+            const tripData = await tripRes.json();
+            setTrips(tripData);
+            if (tripData.length > 0) {
+              setActiveTrip(tripData[0]);
+            } else {
+              setActiveTrip(null);
+            }
+          }
+
+          // 2. Fetch user's expenses
+          const expRes = await fetch('/api/expenses', { headers: getHeaders() });
+          if (expRes.ok) {
+            const expData = await expRes.json();
+            setExpenses(expData);
+          }
+
+          // 3. Fetch user's checklists
+          const chkRes = await fetch('/api/checklists', { headers: getHeaders() });
+          if (chkRes.ok) {
+            const chkData = await chkRes.json();
+            setChecklists(chkData || { travel: [], packing: [] });
+          }
+
+          // 4. Fetch user's saved destinations
+          const savedRes = await fetch('/api/saved-destinations', { headers: getHeaders() });
+          if (savedRes.ok) {
+            const savedData = await savedRes.json();
+            setSavedDestinationIds(savedData.map(d => d.slug || d._id));
           }
         }
-
-        // 2. Fetch user's real expenses
-        const expRes = await fetch('/api/expenses', { headers: getHeaders() });
-        if (expRes.ok) {
-          const expData = await expRes.json();
-          setExpenses(expData);
-        }
-
-        // 3. Fetch user's real checklists
-        const chkRes = await fetch('/api/checklists', { headers: getHeaders() });
-        if (chkRes.ok) {
-          const chkData = await chkRes.json();
-          setChecklists(chkData || { travel: [], packing: [] });
-        }
-
-        // 4. Fetch user's real saved destinations
-        const savedRes = await fetch('/api/saved-destinations', { headers: getHeaders() });
-        if (savedRes.ok) {
-          const savedData = await savedRes.json();
-          setSavedDestinationIds(savedData.map(d => d.slug || d._id));
-        }
       } catch (err) {
-        console.error('Error fetching user data from backend:', err);
+        console.error('Error fetching user travel data:', err);
       } finally {
         setLoadingTrips(false);
       }
@@ -89,7 +103,7 @@ export const TripProvider = ({ children }) => {
     fetchUserData();
   }, [isAuthenticated, user?.uid]);
 
-  // Toggle Save Destination in MongoDB
+  // Toggle Save Destination
   const toggleSaveDestination = async (id, destinationName = '') => {
     if (!isAuthenticated) {
       alert('Please sign in to save destinations to your personal wishlist.');
@@ -97,6 +111,19 @@ export const TripProvider = ({ children }) => {
     }
 
     try {
+      if (isSupabaseConfigured) {
+        const isCurrentlySaved = savedDestinationIds.includes(id);
+        if (isCurrentlySaved) {
+          await databaseService.removeSavedDestination(user.uid, id);
+          setSavedDestinationIds(prev => prev.filter(item => item !== id));
+          return false;
+        } else {
+          await databaseService.saveDestination(user.uid, { slug: id, id, name: destinationName || id });
+          setSavedDestinationIds(prev => [...prev, id]);
+          return true;
+        }
+      }
+
       const response = await fetch('/api/saved-destinations/toggle', {
         method: 'POST',
         headers: getHeaders(),
@@ -118,9 +145,16 @@ export const TripProvider = ({ children }) => {
 
   const isDestinationSaved = (id) => savedDestinationIds.includes(id);
 
-  // Save New Trip to MongoDB
+  // Save New Trip
   const saveNewTrip = async (tripData) => {
     try {
+      if (isSupabaseConfigured && user?.uid) {
+        const createdTrip = await databaseService.createTrip(user.uid, tripData);
+        setTrips(prev => [createdTrip, ...prev]);
+        setActiveTrip(createdTrip);
+        return createdTrip;
+      }
+
       const response = await fetch('/api/trips', {
         method: 'POST',
         headers: getHeaders(),
@@ -142,9 +176,18 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Update Trip in MongoDB
+  // Update Trip
   const updateTrip = async (id, updates) => {
     try {
+      if (isSupabaseConfigured) {
+        const updated = await databaseService.updateTrip(id, updates);
+        setTrips(prev => prev.map(t => t.id === id || t._id === id ? { ...t, ...updates } : t));
+        if (activeTrip && (activeTrip.id === id || activeTrip._id === id)) {
+          setActiveTrip(prev => ({ ...prev, ...updates }));
+        }
+        return updated;
+      }
+
       const response = await fetch(`/api/trips/${id}`, {
         method: 'PUT',
         headers: getHeaders(),
@@ -164,9 +207,19 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Delete Trip from MongoDB
+  // Delete Trip
   const deleteTrip = async (id) => {
     try {
+      if (isSupabaseConfigured) {
+        await databaseService.deleteTrip(id);
+        setTrips(prev => prev.filter(t => t.id !== id && t._id !== id));
+        if (activeTrip && (activeTrip.id === id || activeTrip._id === id)) {
+          const remaining = trips.filter(t => t.id !== id && t._id !== id);
+          setActiveTrip(remaining[0] || null);
+        }
+        return;
+      }
+
       const response = await fetch(`/api/trips/${id}`, {
         method: 'DELETE',
         headers: getHeaders()
@@ -184,9 +237,15 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Add Expense to MongoDB
+  // Add Expense
   const addExpense = async (expenseData) => {
     try {
+      if (isSupabaseConfigured && user?.uid) {
+        const createdExp = await databaseService.addExpense(user.uid, expenseData);
+        setExpenses(prev => [createdExp, ...prev]);
+        return createdExp;
+      }
+
       const response = await fetch('/api/expenses', {
         method: 'POST',
         headers: getHeaders(),
@@ -197,7 +256,6 @@ export const TripProvider = ({ children }) => {
         const createdExp = await response.json();
         setExpenses(prev => [createdExp, ...prev]);
 
-        // Update local trip spentBudget
         if (expenseData.tripId) {
           setTrips(prev => prev.map(t => {
             if (t._id === expenseData.tripId || t.id === expenseData.tripId) {
@@ -214,7 +272,7 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Delete Expense from MongoDB
+  // Delete Expense
   const deleteExpense = async (id) => {
     try {
       const target = expenses.find(e => e._id === id || e.id === id);
@@ -239,9 +297,20 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Toggle Checklist item in MongoDB
+  // Toggle Checklist item
   const toggleChecklist = async (type, id) => {
     try {
+      if (isSupabaseConfigured) {
+        const item = checklists[type]?.find(i => i.id === id || i._id === id);
+        const newStatus = !item?.completed;
+        await databaseService.toggleChecklist(id, newStatus);
+        setChecklists(prev => ({
+          ...prev,
+          [type]: prev[type].map(i => (i._id === id || i.id === id) ? { ...i, completed: newStatus } : i)
+        }));
+        return;
+      }
+
       const response = await fetch(`/api/checklists/${id}/toggle`, {
         method: 'PATCH',
         headers: getHeaders()
@@ -259,7 +328,7 @@ export const TripProvider = ({ children }) => {
     }
   };
 
-  // Add Checklist item to MongoDB
+  // Add Checklist item
   const addChecklistItem = async (type, text, category = 'General') => {
     try {
       const response = await fetch('/api/checklists', {
@@ -305,3 +374,5 @@ export const TripProvider = ({ children }) => {
     </TripContext.Provider>
   );
 };
+
+export default TripContext;

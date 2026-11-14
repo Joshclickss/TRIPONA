@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { databaseService } from '../services/databaseService';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 const BookingContext = createContext();
 
@@ -72,12 +74,24 @@ export const BookingProvider = ({ children }) => {
   // Fetch bookings when authenticated or with guest token
   const fetchUserBookings = useCallback(async (status = '', category = '') => {
     const token = localStorage.getItem('tripona_token') || (user?.uid ? `test-valid-user-${user.uid}` : '');
-    if (!token && (!isAuthenticated || !user?.uid)) {
+    const activeUid = user?.uid || (token && !token.startsWith('test-valid-user-') ? token : null);
+
+    if (!activeUid && !token && (!isAuthenticated || !user?.uid)) {
       setBookings([]);
       return;
     }
     setLoadingBookings(true);
     try {
+      if (isSupabaseConfigured && user?.uid) {
+        const cloudBookings = await databaseService.getBookings(user.uid, category);
+        let filtered = cloudBookings;
+        if (status && status !== 'all') {
+          filtered = cloudBookings.filter(b => b.bookingStatus === status);
+        }
+        setBookings(filtered);
+        return;
+      }
+
       const query = new URLSearchParams();
       if (status && status !== 'all') query.append('status', status);
       if (category && category !== 'all') query.append('category', category);
@@ -103,6 +117,12 @@ export const BookingProvider = ({ children }) => {
   // Create a new booking
   const createBooking = async (bookingData) => {
     try {
+      if (isSupabaseConfigured && user?.uid) {
+        const result = await databaseService.createBooking(user.uid, bookingData);
+        await fetchUserBookings();
+        return { success: true, booking: result };
+      }
+
       const idempotencyKey = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const res = await fetch('/api/bookings', {
         method: 'POST',
@@ -147,6 +167,12 @@ export const BookingProvider = ({ children }) => {
   // Cancel booking
   const cancelBooking = async (bookingId, cancellationReason = 'User requested cancellation') => {
     try {
+      if (isSupabaseConfigured) {
+        await databaseService.cancelBooking(bookingId, cancellationReason);
+        await fetchUserBookings();
+        return { success: true };
+      }
+
       const res = await fetch(`/api/bookings/${bookingId}/cancel`, {
         method: 'POST',
         headers: getHeaders(),
@@ -240,3 +266,5 @@ export const BookingProvider = ({ children }) => {
     </BookingContext.Provider>
   );
 };
+
+export default BookingContext;
