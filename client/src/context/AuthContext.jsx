@@ -27,7 +27,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   // Real authenticated user state (starts as null or previously stored session)
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('tripona_user');
+    const saved = localStorage.getItem('tripona_user') || sessionStorage.getItem('tripona_user');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -41,10 +41,28 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  // Helper to persist or clear session tokens across local or session storage
+  const persistUserSession = (userObj, token, remember = true) => {
+    const targetStorage = remember ? localStorage : sessionStorage;
+    const alternateStorage = remember ? sessionStorage : localStorage;
+
+    if (userObj) {
+      targetStorage.setItem('tripona_user', JSON.stringify(userObj));
+      if (token) targetStorage.setItem('tripona_token', token);
+      alternateStorage.removeItem('tripona_user');
+      alternateStorage.removeItem('tripona_token');
+    } else {
+      localStorage.removeItem('tripona_user');
+      localStorage.removeItem('tripona_token');
+      sessionStorage.removeItem('tripona_user');
+      sessionStorage.removeItem('tripona_token');
+    }
+  };
+
   // Sync user with backend & cloud
   const syncUserWithBackend = async (userData, tokenOverride) => {
     try {
-      const token = tokenOverride || localStorage.getItem('tripona_token') || `test-valid-user-${userData.uid}`;
+      const token = tokenOverride || localStorage.getItem('tripona_token') || sessionStorage.getItem('tripona_token') || `test-valid-user-${userData.uid}`;
       const response = await fetch('/api/users/sync', {
         method: 'POST',
         headers: { 
@@ -96,12 +114,13 @@ export const AuthProvider = ({ children }) => {
           await syncUserWithBackend(formattedUser, idToken);
           setUser(formattedUser);
           setAuthError(null); // clear any residual errors on successful auth
-          localStorage.setItem('tripona_user', JSON.stringify(formattedUser));
+          const isSessionStored = !!sessionStorage.getItem('tripona_user');
+          persistUserSession(formattedUser, idToken, !isSessionStored);
         } else {
-          const saved = localStorage.getItem('tripona_user');
+          const saved = localStorage.getItem('tripona_user') || sessionStorage.getItem('tripona_user');
           if (!saved) {
             setUser(null);
-            localStorage.removeItem('tripona_token');
+            persistUserSession(null, null);
           }
         }
         setLoading(false);
@@ -119,7 +138,7 @@ export const AuthProvider = ({ children }) => {
   /**
    * Real Email & Password Login
    */
-  const login = async (email, password) => {
+  const login = async (email, password, remember = true) => {
     setLoading(true);
     setAuthError(null);
     try {
@@ -130,7 +149,6 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const fbUser = userCredential.user;
       const idToken = await fbUser.getIdToken();
-      if (idToken) localStorage.setItem('tripona_token', idToken);
 
       const loggedName = fbUser.displayName || email.split('@')[0];
       const loggedUser = {
@@ -147,7 +165,8 @@ export const AuthProvider = ({ children }) => {
 
       await syncUserWithBackend(loggedUser, idToken);
       setUser(loggedUser);
-      localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
+      setAuthError(null);
+      persistUserSession(loggedUser, idToken, remember);
       return { success: true, user: loggedUser };
     } catch (err) {
       let friendlyError = err.message || 'Login failed.';
@@ -168,7 +187,7 @@ export const AuthProvider = ({ children }) => {
   /**
    * Real Email & Password Registration
    */
-  const register = async (name, email, password) => {
+  const register = async (name, email, password, remember = true) => {
     setLoading(true);
     setAuthError(null);
     try {
@@ -212,7 +231,8 @@ export const AuthProvider = ({ children }) => {
 
       await syncUserWithBackend(newUser, idToken);
       setUser(newUser);
-      localStorage.setItem('tripona_user', JSON.stringify(newUser));
+      setAuthError(null);
+      persistUserSession(newUser, idToken, remember);
       return { success: true, user: newUser };
     } catch (err) {
       let friendlyError = err.message || 'Registration failed.';
@@ -261,7 +281,8 @@ export const AuthProvider = ({ children }) => {
 
       await syncUserWithBackend(loggedUser, idToken);
       setUser(loggedUser);
-      localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
+      setAuthError(null);
+      persistUserSession(loggedUser, idToken, true);
       return { success: true, user: loggedUser };
     } catch (err) {
       if (err.code === 'auth/popup-closed-by-user') {
@@ -308,8 +329,7 @@ export const AuthProvider = ({ children }) => {
       console.warn('Sign out warning:', e);
     }
     setUser(null);
-    localStorage.removeItem('tripona_user');
-    localStorage.removeItem('tripona_token');
+    persistUserSession(null, null);
   };
 
   /**
