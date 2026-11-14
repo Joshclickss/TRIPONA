@@ -8,7 +8,7 @@
     "client": "cd client && npm run dev",
     "server": "cd server && npm start",
     "start": "npm run dev",
-    "build": "cd client && npm run build"
+    "build": "cd client && npm install && npm run build && cd .. && rm -rf dist && cp -r client/dist dist"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
