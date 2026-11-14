@@ -95,6 +95,7 @@ export const AuthProvider = ({ children }) => {
 
           await syncUserWithBackend(formattedUser, idToken);
           setUser(formattedUser);
+          setAuthError(null); // clear any residual errors on successful auth
           localStorage.setItem('tripona_user', JSON.stringify(formattedUser));
         } else {
           const saved = localStorage.getItem('tripona_user');
