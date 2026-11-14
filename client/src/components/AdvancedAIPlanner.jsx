@@ -38,6 +38,7 @@ import { useBooking } from '../context/BookingContext';
 import TripRouteMap from './TripRouteMap';
 import { exportTripToPdf } from '../utils/exportPdf';
 import { apiRequest } from '../services/api';
+import { getCurrencyForDestination } from '../utils/currency';
 
 const UNIVERSAL_PROMPT_SUGGESTIONS = [
   {
@@ -145,14 +146,29 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
     const parts = val.split(',');
     const currentToken = parts[parts.length - 1];
     fetchCitySuggestions(currentToken, setCitySuggestions, setShowCityDropdown);
+
+    // Auto-detect currency from destination
+    const detected = getCurrencyForDestination(val);
+    if (detected) {
+      setCurrency(detected.currency);
+      if (detected.defaultBudget) setBudget(String(detected.defaultBudget));
+    }
   };
 
   const selectDestinationSuggestion = (cityObj) => {
     const parts = destinationsInput.split(',').map(s => s.trim()).filter(Boolean);
     if (parts.length > 0) parts.pop();
     parts.push(cityObj.city);
-    setDestinationsInput(parts.join(', ') + ', ');
+    const newDest = parts.join(', ') + ', ';
+    setDestinationsInput(newDest);
     setShowCityDropdown(false);
+
+    // Auto-detect currency from selected city or country
+    const detected = getCurrencyForDestination(cityObj.city) || getCurrencyForDestination(cityObj.country);
+    if (detected) {
+      setCurrency(detected.currency);
+      if (detected.defaultBudget) setBudget(String(detected.defaultBudget));
+    }
   };
 
   const handleOriginChange = (val) => {
@@ -184,9 +200,20 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
   useEffect(() => {
     if (initialDestination) {
       setDestinationsInput(initialDestination);
+      const detected = getCurrencyForDestination(initialDestination);
+      let targetCurrency = currency;
+      let targetBudget = budget;
+      if (detected) {
+        targetCurrency = detected.currency;
+        setCurrency(detected.currency);
+        if (detected.defaultBudget) {
+          targetBudget = String(detected.defaultBudget);
+          setBudget(String(detected.defaultBudget));
+        }
+      }
       const newPrompt = `Plan a bespoke 7-day journey exploring ${initialDestination} with premier stays, scenic trails and regional dining.`;
       setNlPrompt(newPrompt);
-      handleGenerate(newPrompt);
+      handleGenerate(newPrompt, targetCurrency, targetBudget);
     } else {
       // Auto-load universal masterplan on initial mount
       handleGenerate();
@@ -217,7 +244,7 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
   };
 
   // Generate Trip via POST /api/ai/plan-trip
-  const handleGenerate = async (overridePrompt = null) => {
+  const handleGenerate = async (overridePrompt = null, overrideCurrency = null, overrideBudget = null) => {
     const promptToSend = overridePrompt || nlPrompt;
     if (!promptToSend.trim() && !destinationsInput.trim()) return;
 
@@ -229,6 +256,9 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
         ? destinationsInput.split(/[,&+]|\band\b/i).map(s => s.trim()).filter(Boolean)
         : [];
 
+      const activeCurrency = overrideCurrency || currency || 'USD';
+      const activeBudget = overrideBudget ? Number(overrideBudget) : (budget ? Number(budget) : undefined);
+
       const tripData = await apiRequest('/api/ai/plan-trip', {
         method: 'POST',
         body: JSON.stringify({
@@ -236,8 +266,8 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
           destinations: destList.length > 0 ? destList : undefined,
           startingLocation: startingLocation || undefined,
           duration: duration ? Number(duration) : undefined,
-          budget: budget ? Number(budget) : undefined,
-          currency: currency || 'USD',
+          budget: activeBudget,
+          currency: activeCurrency,
           travellers: travellers ? Number(travellers) : undefined,
           travelStyle: travelStyle || undefined
         })
@@ -403,7 +433,16 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
               <textarea
                 rows={2}
                 value={nlPrompt}
-                onChange={(e) => setNlPrompt(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNlPrompt(val);
+                  // Auto detect destination mentions in the prompt to adjust currency
+                  const detected = getCurrencyForDestination(val);
+                  if (detected && detected.currency !== currency) {
+                    setCurrency(detected.currency);
+                    if (detected.defaultBudget) setBudget(String(detected.defaultBudget));
+                  }
+                }}
                 placeholder="e.g. Plan a 10-day trip visiting Tokyo, Seoul, Singapore, Bali for 2 people with $5,000 budget from London..."
                 className="w-full pl-4 pr-32 py-3.5 rounded-2xl bg-[#090C10]/80 border border-white/15 focus:border-[#A855F7] text-sm text-white placeholder-white/35 focus:outline-none focus:ring-1 focus:ring-[#A855F7] transition-all resize-none font-sans leading-relaxed"
                 disabled={loading}
@@ -440,7 +479,18 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
                   onClick={() => {
                     setNlPrompt(item.prompt);
                     setDestinationsInput(item.label);
-                    handleGenerate(item.prompt);
+                    const detected = getCurrencyForDestination(item.label);
+                    let targetCurrency = currency;
+                    let targetBudget = budget;
+                    if (detected) {
+                      targetCurrency = detected.currency;
+                      setCurrency(detected.currency);
+                      if (detected.defaultBudget) {
+                        targetBudget = String(detected.defaultBudget);
+                        setBudget(String(detected.defaultBudget));
+                      }
+                    }
+                    handleGenerate(item.prompt, targetCurrency, targetBudget);
                   }}
                   className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-white/20 text-xs text-white/80 hover:text-white transition-all text-left group"
                 >
