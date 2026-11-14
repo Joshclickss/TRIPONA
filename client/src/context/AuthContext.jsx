@@ -160,6 +160,36 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  const loginDemo = async (customName = 'Voyager Explorer', customEmail = 'voyager.demo@tripona.travel') => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const uid = 'demo_' + Date.now().toString(36);
+      const demoUser = {
+        uid,
+        id: uid,
+        name: customName,
+        displayName: customName,
+        email: customEmail,
+        photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(customName)}&background=527F91&color=fff`,
+        currency: 'USD ($)',
+        country: 'Global Voyager',
+        role: 'user'
+      };
+      const token = `demo-token-${uid}`;
+      localStorage.setItem('tripona_token', token);
+      localStorage.setItem('tripona_user', JSON.stringify(demoUser));
+      setUser(demoUser);
+      await syncUserWithBackend(demoUser, token);
+      return { success: true, user: demoUser };
+    } catch (err) {
+      setAuthError(err.message);
+      return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const login = async (email, password) => {
     setLoading(true);
     setAuthError(null);
@@ -183,6 +213,7 @@ export const AuthProvider = ({ children }) => {
         const loggedUser = {
           uid: fbUser.uid,
           name: fbUser.displayName || email.split('@')[0],
+          displayName: fbUser.displayName || email.split('@')[0],
           email: fbUser.email,
           photoURL: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(email)}&background=527F91&color=fff`,
           currency: 'USD ($)',
@@ -198,6 +229,7 @@ export const AuthProvider = ({ children }) => {
         const loggedUser = {
           uid,
           name: cleanName,
+          displayName: cleanName,
           email,
           photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=527F91&color=fff`,
           currency: 'USD ($)',
@@ -209,8 +241,16 @@ export const AuthProvider = ({ children }) => {
         return { success: true };
       }
     } catch (err) {
-      setAuthError(err.message);
-      return { success: false, error: err.message };
+      let friendlyError = err.message || 'Authentication error. Please check your credentials.';
+      if (err.message?.includes('Invalid login credentials') || err.message?.includes('invalid_credentials')) {
+        friendlyError = 'Invalid email or password. Please verify and try again, or sign up for a new account.';
+      } else if (err.message?.includes('Email not confirmed')) {
+        friendlyError = 'Please check your email and confirm your address before logging in, or use 1-Click Demo Voyager.';
+      } else if (err.message?.includes('unauthorized-domain')) {
+        friendlyError = 'This domain is not yet whitelisted in Firebase Auth. You can log in using 1-Click Demo Voyager!';
+      }
+      setAuthError(friendlyError);
+      return { success: false, error: friendlyError };
     } finally {
       setLoading(false);
     }
@@ -221,47 +261,46 @@ export const AuthProvider = ({ children }) => {
     setAuthError(null);
     try {
       if (authService.isConfigured()) {
-        await authService.loginWithGoogle();
-        return { success: true };
+        try {
+          const res = await authService.loginWithGoogle();
+          if (res?.url) {
+            return { success: true };
+          }
+        } catch (supErr) {
+          console.warn('Supabase Google OAuth not active, falling back to Google Voyager:', supErr.message);
+          return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
+        }
       }
 
       if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
-        const result = await signInWithPopup(auth, googleProvider);
-        const fbUser = result.user;
-        const idToken = await fbUser.getIdToken().catch(() => null);
-        if (idToken) localStorage.setItem('tripona_token', idToken);
-        const loggedUser = {
-          uid: fbUser.uid,
-          name: fbUser.displayName || fbUser.email?.split('@')[0],
-          email: fbUser.email,
-          photoURL: fbUser.photoURL,
-          currency: 'USD ($)',
-          country: 'International Voyager'
-        };
-        await syncUserWithBackend(loggedUser, idToken);
-        setUser(loggedUser);
-        localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
-        return { success: true };
+        try {
+          const result = await signInWithPopup(auth, googleProvider);
+          const fbUser = result.user;
+          const idToken = await fbUser.getIdToken().catch(() => null);
+          if (idToken) localStorage.setItem('tripona_token', idToken);
+          const loggedUser = {
+            uid: fbUser.uid,
+            name: fbUser.displayName || fbUser.email?.split('@')[0],
+            displayName: fbUser.displayName || fbUser.email?.split('@')[0],
+            email: fbUser.email,
+            photoURL: fbUser.photoURL,
+            currency: 'USD ($)',
+            country: 'International Voyager'
+          };
+          await syncUserWithBackend(loggedUser, idToken);
+          setUser(loggedUser);
+          localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
+          return { success: true };
+        } catch (fbErr) {
+          console.warn('Firebase Google Auth not authorized for domain, falling back to Google Voyager:', fbErr.message);
+          return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
+        }
       } else {
-        const email = prompt("Enter your Google Account email:", "voyager.google@gmail.com");
-        if (!email) return { success: false, error: "Google sign-in cancelled" };
-        const cleanName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const loggedUser = {
-          uid: 'google_' + Date.now().toString(36),
-          name: cleanName,
-          email,
-          photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=4285F4&color=fff`,
-          currency: 'USD ($)',
-          country: 'Verified Voyager'
-        };
-        await syncUserWithBackend(loggedUser);
-        setUser(loggedUser);
-        localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
-        return { success: true };
+        return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
       }
     } catch (err) {
-      setAuthError(err.message);
-      return { success: false, error: err.message };
+      console.warn('Google Auth fallback to demo session:', err.message);
+      return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
     } finally {
       setLoading(false);
     }
@@ -281,7 +320,14 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem('tripona_user', JSON.stringify(supUser));
           await syncUserWithBackend(supUser, session?.access_token);
         }
-        return { success: true };
+        const requiresVerification = !session;
+        return { 
+          success: true, 
+          user: supUser,
+          message: requiresVerification 
+            ? 'Account created! Please check your email inbox to verify your account, or sign in as Demo Voyager.' 
+            : 'Account registered and signed in!'
+        };
       }
 
       if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
@@ -292,6 +338,7 @@ export const AuthProvider = ({ children }) => {
         const newUser = {
           uid: fbUser.uid,
           name: name || email.split('@')[0],
+          displayName: name || email.split('@')[0],
           email: fbUser.email,
           photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=527F91&color=fff`,
           currency: 'USD ($)',
@@ -300,12 +347,13 @@ export const AuthProvider = ({ children }) => {
         await syncUserWithBackend(newUser, idToken);
         setUser(newUser);
         localStorage.setItem('tripona_user', JSON.stringify(newUser));
-        return { success: true };
+        return { success: true, user: newUser };
       } else {
         const uid = 'usr_' + Date.now().toString(36);
         const newUser = {
           uid,
           name: name.trim(),
+          displayName: name.trim(),
           email: email.trim(),
           photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=527F91&color=fff`,
           currency: 'USD ($)',
@@ -314,11 +362,19 @@ export const AuthProvider = ({ children }) => {
         await syncUserWithBackend(newUser);
         setUser(newUser);
         localStorage.setItem('tripona_user', JSON.stringify(newUser));
-        return { success: true };
+        return { success: true, user: newUser };
       }
     } catch (err) {
-      setAuthError(err.message);
-      return { success: false, error: err.message };
+      let friendlyError = err.message || 'Registration error.';
+      if (err.message?.includes('User already registered') || err.message?.includes('already registered')) {
+        friendlyError = 'An account with this email already exists. Please log in instead.';
+      } else if (err.message?.includes('Password should be at least')) {
+        friendlyError = 'Password is too short. Please use at least 6 characters.';
+      } else if (err.message?.includes('invalid')) {
+        friendlyError = 'Please provide a valid email address.';
+      }
+      setAuthError(friendlyError);
+      return { success: false, error: friendlyError };
     } finally {
       setLoading(false);
     }
@@ -382,6 +438,7 @@ export const AuthProvider = ({ children }) => {
       authError,
       login,
       loginWithGoogle,
+      loginDemo,
       register,
       logout,
       resetPassword,

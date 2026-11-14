@@ -173,6 +173,16 @@ export const authService = {
       };
     }
 
+    // Verify if Google Provider is configured in Supabase to prevent redirecting to 400 error page
+    try {
+      const probe = await fetch(`${supabase.supabaseUrl || 'https://txletwjkudauhxuenwkx.supabase.co'}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`);
+      if (!probe.ok && probe.status >= 400) {
+        throw new Error('Google OAuth provider is not enabled in Supabase project settings.');
+      }
+    } catch (err) {
+      throw err;
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
