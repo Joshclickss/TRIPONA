@@ -12,6 +12,7 @@ import AuthModal from './components/AuthModal';
 import ServicesExplorerModal from './components/ServicesExplorerModal';
 import BookingCheckoutModal from './components/BookingCheckoutModal';
 import MyBookingsModal from './components/MyBookingsModal';
+import TravelIntelligenceModal from './components/TravelIntelligenceModal';
 
 // Page Sections (Strict master layout order)
 import HeroSection from './components/HeroSection';
@@ -31,6 +32,7 @@ function AppContent() {
   const [destinationsOpen, setDestinationsOpen] = useState(false);
   const [tripsOpen, setTripsOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [intelligenceOpen, setIntelligenceOpen] = useState(false);
 
   // Selected destination state when clicking "Plan Trip" anywhere
   const [selectedDestination, setSelectedDestination] = useState(null);
@@ -60,6 +62,7 @@ function AppContent() {
         onOpenPlanner={() => handleOpenPlanner()}
         onOpenMyTrips={() => setTripsOpen(true)}
         onOpenBookings={() => openMyBookings()}
+        onOpenIntelligence={() => setIntelligenceOpen(true)}
         onOpenAuth={() => setAuthOpen(true)}
         onOpenDestinations={() => setDestinationsOpen(true)}
       />
@@ -165,6 +168,12 @@ function AppContent() {
       <AuthModal
         isOpen={authOpen}
         onClose={() => setAuthOpen(false)}
+      />
+
+      <TravelIntelligenceModal
+        isOpen={intelligenceOpen}
+        onClose={() => setIntelligenceOpen(false)}
+        initialDestination={selectedDestination?.name || 'Tokyo'}
       />
 
       {/* ========================================================= */}

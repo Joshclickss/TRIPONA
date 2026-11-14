@@ -161,6 +161,40 @@ assert(fs.existsSync(citiesModel), 'Mongoose City model exists in server/models/
 const citiesStats = fs.statSync(citiesCsv);
 assert(citiesStats.size > 5 * 1024 * 1024, `worldcities.csv is complete (${(citiesStats.size / (1024 * 1024)).toFixed(2)} MB)`);
 
+// ----------------------------------------------------
+// TEST GROUP 7: REAL-TIME GLOBAL TRAVEL INTELLIGENCE ENGINE
+// ----------------------------------------------------
+console.log('\n📌 [Test Group 7] Verifying Real-Time Travel Intelligence Engine...');
+
+const intelMigration = path.join(rootDir, 'supabase', 'migrations', '20261114_add_travel_intelligence.sql');
+assert(fs.existsSync(intelMigration), 'travel_intelligence_cache SQL migration exists');
+
+const intelService = path.join(rootDir, 'server', 'services', 'travelIntelligenceService.js');
+assert(fs.existsSync(intelService), 'travelIntelligenceService.js exists in server/services');
+
+const intelRoute = path.join(rootDir, 'server', 'routes', 'intelligence.js');
+assert(fs.existsSync(intelRoute), 'intelligence.js routes exist in server/routes');
+
+const intelModal = path.join(rootDir, 'client', 'src', 'components', 'TravelIntelligenceModal.jsx');
+assert(fs.existsSync(intelModal), 'TravelIntelligenceModal.jsx exists in client/src/components');
+
+// Test budget engine calculations
+const { calculateSourceBackedBudget } = await import('../server/services/travelIntelligenceService.js');
+const testBudget = calculateSourceBackedBudget({
+  destinationName: 'Tokyo',
+  country: 'Japan',
+  durationDays: 7,
+  travellerGroup: 'couple',
+  travelStyle: 'mid-range',
+  baseCurrency: 'USD',
+  fxRate: 0.90,
+  targetCurrency: 'EUR'
+});
+
+assert(testBudget.totals.totalTripBudget > 0, 'Budget engine calculates positive total');
+assert(testBudget.breakdown.accommodation.amount > 0, 'Accommodation cost calculated');
+assert(testBudget.sourceVerification.verificationStatus === 'ESTIMATED_STATISTICAL', 'Source status tagged ESTIMATED_STATISTICAL');
+
 console.log('\n====================================================');
 console.log(`🎉 ALL TESTS PASSED: ${passedTests}/${totalTests} tests successful!`);
 console.log('====================================================\n');

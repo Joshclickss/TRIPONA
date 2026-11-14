@@ -19,6 +19,7 @@ import savedDestinationsRoutes from './routes/savedDestinations.js';
 import checklistsRoutes from './routes/checklists.js';
 import servicesRoutes from './routes/services.js';
 import bookingsRoutes from './routes/bookings.js';
+import intelligenceRoutes from './routes/intelligence.js';
 
 import { seedDestinations } from './scripts/seedDestinations.js';
 
@@ -71,6 +72,7 @@ app.use('/api', generalLimiter);
 app.use('/api/destinations', destinationsRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/services', servicesRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
 
 // Protected & User Specific Routes (authenticated with token verification)
 app.use('/api/users', usersRoutes);

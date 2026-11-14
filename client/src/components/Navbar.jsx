@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Bookmark, User, LogOut, Menu, X, Settings, Heart, Ticket } from 'lucide-react';
+import { Sparkles, Bookmark, User, LogOut, Menu, X, Settings, Heart, Ticket, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar({ 
   onOpenPlanner, 
   onOpenMyTrips, 
   onOpenBookings,
+  onOpenIntelligence,
   onOpenAuth 
 }) {
   const { user, isAuthenticated, logout } = useAuth();
@@ -56,7 +57,17 @@ export default function Navbar({
             <span className="tracking-wide">AI Trip Planner</span>
           </button>
 
-          {/* Action 2: My Trips */}
+          {/* Action 2: Global Travel Intelligence */}
+          <button
+            onClick={onOpenIntelligence}
+            className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel hover:bg-white/[0.08] text-xs font-medium text-white/90 hover:text-white border border-[#06B6D4]/30 hover:border-[#06B6D4]/60 transition-all duration-300 shadow-xl backdrop-blur-xl active:scale-95"
+            aria-label="Real-time Global Travel Intelligence"
+          >
+            <Globe size={13} className="text-[#06B6D4] group-hover:rotate-45 transition-transform duration-300" />
+            <span className="tracking-wide">Intelligence</span>
+          </button>
+
+          {/* Action 3: My Trips */}
           <button
             onClick={onOpenMyTrips}
             className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-full glass-panel hover:bg-white/[0.08] text-xs font-medium text-white/90 hover:text-white border border-white/10 hover:border-white/20 transition-all duration-300 shadow-xl backdrop-blur-xl active:scale-95"
@@ -173,6 +184,17 @@ export default function Navbar({
           </button>
 
           <div className="flex items-center justify-between pt-2 border-t border-white/10">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenIntelligence && onOpenIntelligence();
+              }}
+              className="text-xs font-semibold text-[#06B6D4] hover:text-white flex items-center gap-1.5"
+            >
+              <Globe size={14} />
+              <span>Intelligence</span>
+            </button>
+
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
