@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Sparkles, Loader2, Check, ArrowRight, ShieldCheck, Compass } from 'lucide-react';
+import { X, Mail, Lock, User, Sparkles, Loader2, Check, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthModal({ isOpen, onClose }) {
-  const { login, register, loginWithGoogle, loginDemo, resetPassword } = useAuth();
+  const { login, register, loginWithGoogle, resetPassword } = useAuth();
 
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
@@ -30,19 +30,28 @@ export default function AuthModal({ isOpen, onClose }) {
           return;
         }
         const res = await resetPassword(email.trim());
-        setMessage(res?.message || 'Password reset link sent to your email.');
+        if (res.success) {
+          setMessage(res.message || 'Password reset link sent to your email!');
+        } else {
+          setError(res.error || 'Failed to send reset email.');
+        }
         return;
       }
 
       if (isRegister) {
         if (!name.trim()) {
-          setError('Please provide your name.');
+          setError('Please enter your full name.');
+          setLoading(false);
+          return;
+        }
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters.');
           setLoading(false);
           return;
         }
         const res = await register(name.trim(), email.trim(), password);
         if (res.success) {
-          setMessage(res.message || 'Account created successfully!');
+          setMessage(`✨ Welcome ${name.trim()}! Your account has been created.`);
           setTimeout(() => {
             onClose();
           }, 1200);
@@ -57,7 +66,7 @@ export default function AuthModal({ isOpen, onClose }) {
             onClose();
           }, 1000);
         } else {
-          setError(res.error || 'Authentication error. Please check your credentials.');
+          setError(res.error || 'Incorrect email or password.');
         }
       }
     } catch (err) {
@@ -83,27 +92,6 @@ export default function AuthModal({ isOpen, onClose }) {
       }
     } catch (err) {
       setError(err.message || 'Google sign-in error.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInstantDemoLogin = async () => {
-    setLoading(true);
-    setError('');
-    setMessage('');
-    try {
-      const res = await loginDemo('Voyager Explorer', 'voyager.explorer@tripona.travel');
-      if (res?.success) {
-        setMessage('✨ Welcome Voyager! 1-Click Demo session activated.');
-        setTimeout(() => {
-          onClose();
-        }, 800);
-      } else {
-        setError('Failed to initiate demo session.');
-      }
-    } catch (err) {
-      setError(err.message || 'Demo sign-in error.');
     } finally {
       setLoading(false);
     }
@@ -135,7 +123,7 @@ export default function AuthModal({ isOpen, onClose }) {
             {isForgotPass
               ? 'Enter your email to receive recovery instructions'
               : isRegister
-              ? 'Start crafting smart AI itineraries & sync bookings'
+              ? 'Sign up for full access to AI trip planning, itineraries & bookings'
               : 'Sign in to access your saved journeys & bookings'}
           </p>
         </div>
@@ -155,17 +143,6 @@ export default function AuthModal({ isOpen, onClose }) {
 
         {!isForgotPass && (
           <>
-            {/* 1-Click Instant Demo Voyager Login */}
-            <button
-              type="button"
-              onClick={handleInstantDemoLogin}
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500/20 to-purple-500/20 hover:from-cyan-500/30 hover:to-purple-500/30 border border-cyan-400/40 text-cyan-200 text-xs font-semibold flex items-center justify-center gap-2.5 transition-all mb-3 shadow-[0_0_15px_rgba(6,182,212,0.15)] active:scale-98"
-            >
-              <Compass size={15} className="text-cyan-300 animate-spin-slow" />
-              <span>Instant 1-Click Demo Voyager Login</span>
-            </button>
-
             {/* Google SSO Button */}
             <button
               type="button"
@@ -196,7 +173,7 @@ export default function AuthModal({ isOpen, onClose }) {
 
             <div className="flex items-center my-3">
               <div className="flex-1 border-t border-white/10" />
-              <span className="px-3 text-[10px] uppercase tracking-wider text-white/40 font-mono">or email</span>
+              <span className="px-3 text-[10px] uppercase tracking-wider text-white/40 font-mono">or with email</span>
               <div className="flex-1 border-t border-white/10" />
             </div>
           </>
@@ -230,7 +207,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="voyager@tripona.travel"
+                placeholder="you@domain.com"
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-400"
               />
             </div>
@@ -250,7 +227,7 @@ export default function AuthModal({ isOpen, onClose }) {
                     }}
                     className="text-[10px] text-purple-300 hover:text-purple-200 underline"
                   >
-                    Forgot?
+                    Forgot Password?
                   </button>
                 )}
               </div>
@@ -261,7 +238,7 @@ export default function AuthModal({ isOpen, onClose }) {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="At least 6 characters"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-white text-xs focus:outline-none focus:border-purple-400"
                 />
               </div>
@@ -277,7 +254,7 @@ export default function AuthModal({ isOpen, onClose }) {
               <Loader2 size={16} className="animate-spin" />
             ) : (
               <span>
-                {isForgotPass ? 'Send Reset Link' : isRegister ? 'Create Account' : 'Log In'}
+                {isForgotPass ? 'Send Password Reset Email' : isRegister ? 'Create Account & Sign In' : 'Sign In'}
               </span>
             )}
           </button>
@@ -293,11 +270,11 @@ export default function AuthModal({ isOpen, onClose }) {
               }}
               className="text-purple-300 hover:text-purple-200 font-semibold underline underline-offset-2"
             >
-              Back to Log In
+              Back to Sign In
             </button>
           ) : (
             <>
-              {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+              {isRegister ? 'Already have an account?' : "Don't have an account yet?"}{' '}
               <button
                 onClick={() => {
                   setIsRegister(!isRegister);
@@ -306,7 +283,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 }}
                 className="text-purple-300 hover:text-purple-200 font-semibold underline underline-offset-2 ml-1"
               >
-                {isRegister ? 'Log In' : 'Sign Up'}
+                {isRegister ? 'Sign In' : 'Create an Account'}
               </button>
             </>
           )}

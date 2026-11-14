@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService } from '../services/authService';
 import { 
   auth, 
   googleProvider, 
@@ -8,8 +7,10 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   sendPasswordResetEmail,
-  onAuthStateChanged 
+  onAuthStateChanged,
+  updateProfile
 } from '../services/firebase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const AuthContext = createContext();
 
@@ -68,186 +69,91 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true;
 
-    const initAuth = async () => {
-      // 1. Check Supabase session first if configured
-      if (authService.isConfigured()) {
-        const session = await authService.getSession();
-        if (session?.user && isMounted) {
-          const u = session.user;
-          const formatted = {
-            uid: u.id,
-            id: u.id,
-            email: u.email,
-            name: u.user_metadata?.name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Voyager',
-            photoURL: u.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.email?.split('@')[0] || 'User')}&background=527F91&color=fff`,
+    // Listen to real Firebase authentication state changes
+    if (auth) {
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (!isMounted) return;
+        if (firebaseUser) {
+          const idToken = await firebaseUser.getIdToken().catch(() => null);
+          if (idToken) {
+            localStorage.setItem('tripona_token', idToken);
+          }
+
+          const formattedUser = {
+            uid: firebaseUser.uid,
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Voyager',
+            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Voyager',
+            email: firebaseUser.email,
+            photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'User')}&background=527F91&color=fff`,
             country: 'International Voyager',
             currency: 'USD ($)',
             travelPreferences: []
           };
-          setUser(formatted);
-          localStorage.setItem('tripona_user', JSON.stringify(formatted));
-          localStorage.setItem('tripona_token', session.access_token);
-          setLoading(false);
-          return;
-        }
 
-        // Listen for Supabase auth state changes
-        authService.onAuthStateChange(async (event, session) => {
-          if (session?.user && isMounted) {
-            const u = session.user;
-            const formatted = {
-              uid: u.id,
-              id: u.id,
-              email: u.email,
-              name: u.user_metadata?.name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Voyager',
-              photoURL: u.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.email?.split('@')[0] || 'User')}&background=527F91&color=fff`,
-              country: 'International Voyager',
-              currency: 'USD ($)',
-              travelPreferences: []
-            };
-            setUser(formatted);
-            localStorage.setItem('tripona_user', JSON.stringify(formatted));
-            localStorage.setItem('tripona_token', session.access_token);
-          } else if (event === 'SIGNED_OUT' && isMounted) {
+          await syncUserWithBackend(formattedUser, idToken);
+          setUser(formattedUser);
+          localStorage.setItem('tripona_user', JSON.stringify(formattedUser));
+        } else {
+          const saved = localStorage.getItem('tripona_user');
+          if (!saved) {
             setUser(null);
-            localStorage.removeItem('tripona_user');
             localStorage.removeItem('tripona_token');
           }
-        });
-      }
-
-      // 2. Firebase / Local fallback listener
-      if (auth) {
-        onAuthStateChanged(auth, async (firebaseUser) => {
-          if (!isMounted) return;
-          if (firebaseUser) {
-            const idToken = await firebaseUser.getIdToken().catch(() => null);
-            if (idToken) {
-              localStorage.setItem('tripona_token', idToken);
-            }
-
-            const formattedUser = {
-              uid: firebaseUser.uid,
-              name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Voyager',
-              email: firebaseUser.email,
-              photoURL: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'User')}&background=527F91&color=fff`,
-              country: 'International Voyager',
-              currency: 'USD ($)',
-              travelPreferences: []
-            };
-
-            await syncUserWithBackend(formattedUser, idToken);
-            setUser(formattedUser);
-            localStorage.setItem('tripona_user', JSON.stringify(formattedUser));
-          } else if (!authService.isConfigured()) {
-            const saved = localStorage.getItem('tripona_user');
-            if (!saved) {
-              setUser(null);
-              localStorage.removeItem('tripona_token');
-            }
-          }
-          setLoading(false);
-        });
-      } else {
+        }
         setLoading(false);
-      }
-    };
+      });
 
-    initAuth();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const loginDemo = async (customName = 'Voyager Explorer', customEmail = 'voyager.demo@tripona.travel') => {
-    setLoading(true);
-    setAuthError(null);
-    try {
-      const uid = 'demo_' + Date.now().toString(36);
-      const demoUser = {
-        uid,
-        id: uid,
-        name: customName,
-        displayName: customName,
-        email: customEmail,
-        photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(customName)}&background=527F91&color=fff`,
-        currency: 'USD ($)',
-        country: 'Global Voyager',
-        role: 'user'
+      return () => {
+        isMounted = false;
+        unsubscribe && unsubscribe();
       };
-      const token = `demo-token-${uid}`;
-      localStorage.setItem('tripona_token', token);
-      localStorage.setItem('tripona_user', JSON.stringify(demoUser));
-      setUser(demoUser);
-      await syncUserWithBackend(demoUser, token);
-      return { success: true, user: demoUser };
-    } catch (err) {
-      setAuthError(err.message);
-      return { success: false, error: err.message };
-    } finally {
+    } else {
       setLoading(false);
     }
-  };
+  }, []);
 
+  /**
+   * Real Email & Password Login
+   */
   const login = async (email, password) => {
     setLoading(true);
     setAuthError(null);
     try {
-      if (authService.isConfigured()) {
-        const { user: supUser, session } = await authService.login(email, password);
-        if (session?.access_token) {
-          localStorage.setItem('tripona_token', session.access_token);
-        }
-        setUser(supUser);
-        localStorage.setItem('tripona_user', JSON.stringify(supUser));
-        await syncUserWithBackend(supUser, session?.access_token);
-        return { success: true };
+      if (!email || !password) {
+        throw new Error('Please enter both email and password.');
       }
 
-      if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const fbUser = userCredential.user;
-        const idToken = await fbUser.getIdToken().catch(() => null);
-        if (idToken) localStorage.setItem('tripona_token', idToken);
-        const loggedUser = {
-          uid: fbUser.uid,
-          name: fbUser.displayName || email.split('@')[0],
-          displayName: fbUser.displayName || email.split('@')[0],
-          email: fbUser.email,
-          photoURL: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(email)}&background=527F91&color=fff`,
-          currency: 'USD ($)',
-          country: 'International Voyager'
-        };
-        await syncUserWithBackend(loggedUser, idToken);
-        setUser(loggedUser);
-        localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
-        return { success: true };
-      } else {
-        const uid = 'usr_' + Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)).toString(36);
-        const cleanName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const loggedUser = {
-          uid,
-          name: cleanName,
-          displayName: cleanName,
-          email,
-          photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=527F91&color=fff`,
-          currency: 'USD ($)',
-          country: 'International Voyager'
-        };
-        await syncUserWithBackend(loggedUser);
-        setUser(loggedUser);
-        localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
-        return { success: true };
-      }
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
+      const idToken = await fbUser.getIdToken();
+      if (idToken) localStorage.setItem('tripona_token', idToken);
+
+      const loggedName = fbUser.displayName || email.split('@')[0];
+      const loggedUser = {
+        uid: fbUser.uid,
+        id: fbUser.uid,
+        name: loggedName,
+        displayName: loggedName,
+        email: fbUser.email,
+        photoURL: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedName)}&background=527F91&color=fff`,
+        currency: 'USD ($)',
+        country: 'International Voyager',
+        role: 'user'
+      };
+
+      await syncUserWithBackend(loggedUser, idToken);
+      setUser(loggedUser);
+      localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
+      return { success: true, user: loggedUser };
     } catch (err) {
-      let friendlyError = err.message || 'Authentication error. Please check your credentials.';
-      if (err.message?.includes('Invalid login credentials') || err.message?.includes('invalid_credentials')) {
-        friendlyError = 'Invalid email or password. Please verify and try again, or sign up for a new account.';
-      } else if (err.message?.includes('Email not confirmed')) {
-        friendlyError = 'Please check your email and confirm your address before logging in, or use 1-Click Demo Voyager.';
-      } else if (err.message?.includes('unauthorized-domain')) {
-        friendlyError = 'This domain is not yet whitelisted in Firebase Auth. You can log in using 1-Click Demo Voyager!';
+      let friendlyError = err.message || 'Login failed.';
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        friendlyError = 'Incorrect email or password. Please verify your details or click "Sign Up" if you are new.';
+      } else if (err.code === 'auth/invalid-email') {
+        friendlyError = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/too-many-requests') {
+        friendlyError = 'Too many attempts. Please try again later or reset your password.';
       }
       setAuthError(friendlyError);
       return { success: false, error: friendlyError };
@@ -256,122 +162,70 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async () => {
-    setLoading(true);
-    setAuthError(null);
-    try {
-      if (authService.isConfigured()) {
-        try {
-          const res = await authService.loginWithGoogle();
-          if (res?.url) {
-            return { success: true };
-          }
-        } catch (supErr) {
-          console.warn('Supabase Google OAuth not active, falling back to Google Voyager:', supErr.message);
-          return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
-        }
-      }
-
-      if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
-        try {
-          const result = await signInWithPopup(auth, googleProvider);
-          const fbUser = result.user;
-          const idToken = await fbUser.getIdToken().catch(() => null);
-          if (idToken) localStorage.setItem('tripona_token', idToken);
-          const loggedUser = {
-            uid: fbUser.uid,
-            name: fbUser.displayName || fbUser.email?.split('@')[0],
-            displayName: fbUser.displayName || fbUser.email?.split('@')[0],
-            email: fbUser.email,
-            photoURL: fbUser.photoURL,
-            currency: 'USD ($)',
-            country: 'International Voyager'
-          };
-          await syncUserWithBackend(loggedUser, idToken);
-          setUser(loggedUser);
-          localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
-          return { success: true };
-        } catch (fbErr) {
-          console.warn('Firebase Google Auth not authorized for domain, falling back to Google Voyager:', fbErr.message);
-          return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
-        }
-      } else {
-        return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
-      }
-    } catch (err) {
-      console.warn('Google Auth fallback to demo session:', err.message);
-      return await loginDemo('Google Voyager', 'voyager.google@gmail.com');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  /**
+   * Real Email & Password Registration
+   */
   const register = async (name, email, password) => {
     setLoading(true);
     setAuthError(null);
     try {
-      if (authService.isConfigured()) {
-        const { user: supUser, session } = await authService.register(name, email, password);
-        if (session?.access_token) {
-          localStorage.setItem('tripona_token', session.access_token);
-        }
-        if (supUser) {
-          setUser(supUser);
-          localStorage.setItem('tripona_user', JSON.stringify(supUser));
-          await syncUserWithBackend(supUser, session?.access_token);
-        }
-        const requiresVerification = !session;
-        return { 
-          success: true, 
-          user: supUser,
-          message: requiresVerification 
-            ? 'Account created! Please check your email inbox to verify your account, or sign in as Demo Voyager.' 
-            : 'Account registered and signed in!'
-        };
+      if (!email || !password) {
+        throw new Error('Please enter both email and password.');
+      }
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
       }
 
-      if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const fbUser = userCredential.user;
-        const idToken = await fbUser.getIdToken().catch(() => null);
-        if (idToken) localStorage.setItem('tripona_token', idToken);
-        const newUser = {
-          uid: fbUser.uid,
-          name: name || email.split('@')[0],
-          displayName: name || email.split('@')[0],
-          email: fbUser.email,
-          photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=527F91&color=fff`,
-          currency: 'USD ($)',
-          country: 'New Voyager'
-        };
-        await syncUserWithBackend(newUser, idToken);
-        setUser(newUser);
-        localStorage.setItem('tripona_user', JSON.stringify(newUser));
-        return { success: true, user: newUser };
-      } else {
-        const uid = 'usr_' + Date.now().toString(36);
-        const newUser = {
-          uid,
-          name: name.trim(),
-          displayName: name.trim(),
-          email: email.trim(),
-          photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=527F91&color=fff`,
-          currency: 'USD ($)',
-          country: 'New Voyager'
-        };
-        await syncUserWithBackend(newUser);
-        setUser(newUser);
-        localStorage.setItem('tripona_user', JSON.stringify(newUser));
-        return { success: true, user: newUser };
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
+
+      const trimmedName = name?.trim() || email.split('@')[0];
+      if (trimmedName) {
+        await updateProfile(fbUser, {
+          displayName: trimmedName,
+          photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(trimmedName)}&background=527F91&color=fff`
+        }).catch(err => console.warn('Could not update profile name:', err));
       }
+
+      const idToken = await fbUser.getIdToken();
+      if (idToken) localStorage.setItem('tripona_token', idToken);
+
+      const newUser = {
+        uid: fbUser.uid,
+        id: fbUser.uid,
+        name: trimmedName,
+        displayName: trimmedName,
+        email: fbUser.email,
+        photoURL: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(trimmedName)}&background=527F91&color=fff`,
+        currency: 'USD ($)',
+        country: 'Global Voyager',
+        role: 'user'
+      };
+
+      // Also sync into Supabase PostgreSQL profiles table
+      if (isSupabaseConfigured) {
+        supabase.from('profiles').upsert({
+          id: fbUser.uid,
+          email: fbUser.email,
+          name: trimmedName,
+          photo_url: newUser.photoURL,
+          role: 'user',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' }).catch(e => console.warn('Supabase sync notice:', e));
+      }
+
+      await syncUserWithBackend(newUser, idToken);
+      setUser(newUser);
+      localStorage.setItem('tripona_user', JSON.stringify(newUser));
+      return { success: true, user: newUser };
     } catch (err) {
-      let friendlyError = err.message || 'Registration error.';
-      if (err.message?.includes('User already registered') || err.message?.includes('already registered')) {
-        friendlyError = 'An account with this email already exists. Please log in instead.';
-      } else if (err.message?.includes('Password should be at least')) {
-        friendlyError = 'Password is too short. Please use at least 6 characters.';
-      } else if (err.message?.includes('invalid')) {
+      let friendlyError = err.message || 'Registration failed.';
+      if (err.code === 'auth/email-already-in-use' || err.message?.includes('email-already-in-use')) {
+        friendlyError = 'This email is already registered. Please click "Log In" instead.';
+      } else if (err.code === 'auth/invalid-email' || err.message?.includes('invalid-email')) {
         friendlyError = 'Please provide a valid email address.';
+      } else if (err.code === 'auth/weak-password' || err.message?.includes('weak-password')) {
+        friendlyError = 'Password should be at least 6 characters.';
       }
       setAuthError(friendlyError);
       return { success: false, error: friendlyError };
@@ -380,39 +234,114 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Real Google Authentication
+   */
+  const loginWithGoogle = async () => {
+    setLoading(true);
+    setAuthError(null);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      const idToken = await fbUser.getIdToken().catch(() => null);
+      if (idToken) localStorage.setItem('tripona_token', idToken);
+
+      const loggedName = fbUser.displayName || fbUser.email?.split('@')[0] || 'Google Voyager';
+      const loggedUser = {
+        uid: fbUser.uid,
+        id: fbUser.uid,
+        name: loggedName,
+        displayName: loggedName,
+        email: fbUser.email,
+        photoURL: fbUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedName)}&background=4285F4&color=fff`,
+        currency: 'USD ($)',
+        country: 'Verified Voyager',
+        role: 'user'
+      };
+
+      if (isSupabaseConfigured) {
+        supabase.from('profiles').upsert({
+          id: fbUser.uid,
+          email: fbUser.email,
+          name: loggedName,
+          photo_url: loggedUser.photoURL,
+          role: 'user',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' }).catch(e => console.warn('Supabase sync notice:', e));
+      }
+
+      await syncUserWithBackend(loggedUser, idToken);
+      setUser(loggedUser);
+      localStorage.setItem('tripona_user', JSON.stringify(loggedUser));
+      return { success: true, user: loggedUser };
+    } catch (err) {
+      if (err.code === 'auth/popup-closed-by-user') {
+        return { success: false, error: 'Google sign-in popup was cancelled.' };
+      }
+      if (err.code === 'auth/unauthorized-domain' || err.message?.includes('unauthorized-domain')) {
+        const domainMsg = 'Domain authorization pending in Firebase. Please sign up or log in using Email & Password below!';
+        setAuthError(domainMsg);
+        return { success: false, error: domainMsg, isUnauthorizedDomain: true };
+      }
+      const friendlyError = err.message || 'Google sign-in error.';
+      setAuthError(friendlyError);
+      return { success: false, error: friendlyError };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Real Password Reset
+   */
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      return { success: true, message: `Password reset link sent to ${email.trim()}!` };
+    } catch (err) {
+      let msg = err.message || 'Failed to send reset email.';
+      if (err.code === 'auth/user-not-found') {
+        msg = 'No account found with this email.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      }
+      return { success: false, error: msg };
+    }
+  };
+
+  /**
+   * Real Logout
+   */
   const logout = async () => {
     try {
-      if (authService.isConfigured()) {
-        await authService.logout();
-      }
-      if (auth) {
-        await signOut(auth);
-      }
+      await signOut(auth);
     } catch (e) {
-      console.warn("Sign out error:", e);
+      console.warn('Sign out warning:', e);
     }
     setUser(null);
     localStorage.removeItem('tripona_user');
     localStorage.removeItem('tripona_token');
   };
 
-  const resetPassword = async (email) => {
-    if (authService.isConfigured()) {
-      return await authService.resetPassword(email);
-    }
-    if (auth && !auth.config?.apiKey?.includes('DemoPlaceholder')) {
-      await sendPasswordResetEmail(auth, email);
-    }
-    return { success: true, message: `Password reset instructions sent to ${email}` };
-  };
-
-  const updateProfile = async (updates) => {
+  /**
+   * Update Profile
+   */
+  const updateProfileData = async (updates) => {
     const updated = { ...user, ...updates };
     setUser(updated);
     localStorage.setItem('tripona_user', JSON.stringify(updated));
 
-    if (authService.isConfigured() && user?.uid) {
-      await authService.updateProfile(user.uid, updates);
+    if (auth.currentUser && updates.name) {
+      await updateProfile(auth.currentUser, { displayName: updates.name }).catch(() => {});
+    }
+
+    if (isSupabaseConfigured && user?.uid) {
+      supabase.from('profiles').update({
+        name: updates.name,
+        country: updates.country,
+        currency: updates.currency,
+        updated_at: new Date().toISOString()
+      }).eq('id', user.uid).catch(() => {});
     }
 
     try {
@@ -438,13 +367,12 @@ export const AuthProvider = ({ children }) => {
       authError,
       login,
       loginWithGoogle,
-      loginDemo,
       register,
       logout,
       resetPassword,
-      updateProfile,
+      updateProfile: updateProfileData,
       isAuthenticated: !!user,
-      isCloudActive: authService.isConfigured()
+      isCloudActive: true
     }}>
       {children}
     </AuthContext.Provider>
