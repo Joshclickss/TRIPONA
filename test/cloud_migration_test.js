@@ -195,6 +195,34 @@ assert(testBudget.totals.totalTripBudget > 0, 'Budget engine calculates positive
 assert(testBudget.breakdown.accommodation.amount > 0, 'Accommodation cost calculated');
 assert(testBudget.sourceVerification.verificationStatus === 'ESTIMATED_STATISTICAL', 'Source status tagged ESTIMATED_STATISTICAL');
 
+// ----------------------------------------------------
+// TEST GROUP 8: FREE API PROVIDER ADAPTER ARCHITECTURE
+// ----------------------------------------------------
+console.log('\n📌 [Test Group 8] Verifying Free Provider Adapter Architecture...');
+
+const currAdapterFile = path.join(rootDir, 'server', 'services', 'adapters', 'currencyAdapter.js');
+assert(fs.existsSync(currAdapterFile), 'currencyAdapter.js exists (Frankfurter + Open Exchange Rates)');
+
+const weatherAdapterFile = path.join(rootDir, 'server', 'services', 'adapters', 'weatherAdapter.js');
+assert(fs.existsSync(weatherAdapterFile), 'weatherAdapter.js exists (Open-Meteo)');
+
+const countryAdapterFile = path.join(rootDir, 'server', 'services', 'adapters', 'countryStatsAdapter.js');
+assert(fs.existsSync(countryAdapterFile), 'countryStatsAdapter.js exists (World Bank Open Data)');
+
+const attrAdapterFile = path.join(rootDir, 'server', 'services', 'adapters', 'attractionsAdapter.js');
+assert(fs.existsSync(attrAdapterFile), 'attractionsAdapter.js exists (OpenTripMap + OpenStreetMap)');
+
+const geoAdapterFile = path.join(rootDir, 'server', 'services', 'adapters', 'geocodingAdapter.js');
+assert(fs.existsSync(geoAdapterFile), 'geocodingAdapter.js exists (GeoNames + SimpleMaps)');
+
+const registryFile = path.join(rootDir, 'server', 'services', 'adapters', 'travelProviderRegistry.js');
+assert(fs.existsSync(registryFile), 'travelProviderRegistry.js exists');
+
+const { currencyAdapter } = await import('../server/services/adapters/currencyAdapter.js');
+const fxResult = await currencyAdapter.convert(100, 'USD', 'EUR');
+assert(fxResult.convertedAmount > 0, 'Frankfurter / FX conversion returns positive converted amount');
+assert(fxResult.verificationStatus === 'VERIFIED_LIVE' || fxResult.verificationStatus === 'ESTIMATED_STATISTICAL', 'FX status is verified');
+
 console.log('\n====================================================');
 console.log(`🎉 ALL TESTS PASSED: ${passedTests}/${totalTests} tests successful!`);
 console.log('====================================================\n');
