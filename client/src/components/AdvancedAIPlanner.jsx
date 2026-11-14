@@ -115,6 +115,55 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
   const [travellers, setTravellers] = useState('2');
   const [travelStyle, setTravelStyle] = useState('Cultural & Scenic Highlights');
 
+  // SimpleMaps World Cities Autocomplete State
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [originSuggestions, setOriginSuggestions] = useState([]);
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+
+  const fetchCitySuggestions = async (token, setSuggestions, setShowDropdown) => {
+    if (!token || token.trim().length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/destinations/search-cities?q=${encodeURIComponent(token.trim())}&limit=6`);
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data);
+        setShowDropdown(data.length > 0);
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleDestinationChange = (val) => {
+    setDestinationsInput(val);
+    const parts = val.split(',');
+    const currentToken = parts[parts.length - 1];
+    fetchCitySuggestions(currentToken, setCitySuggestions, setShowCityDropdown);
+  };
+
+  const selectDestinationSuggestion = (cityObj) => {
+    const parts = destinationsInput.split(',').map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) parts.pop();
+    parts.push(cityObj.city);
+    setDestinationsInput(parts.join(', ') + ', ');
+    setShowCityDropdown(false);
+  };
+
+  const handleOriginChange = (val) => {
+    setStartingLocation(val);
+    fetchCitySuggestions(val, setOriginSuggestions, setShowOriginDropdown);
+  };
+
+  const selectOriginSuggestion = (cityObj) => {
+    setStartingLocation(cityObj.city);
+    setShowOriginDropdown(false);
+  };
+
   // Generation & Active Trip state
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -408,28 +457,85 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
             {/* Collapsible Advanced Parameters */}
             {showAdvanced && (
               <div className="grid grid-cols-12 gap-3 pt-3 border-t border-white/10 animate-fadeIn">
-                {/* Destinations */}
-                <div className="space-y-1 col-span-12 sm:col-span-6 lg:col-span-3">
-                  <label className="text-[11px] font-mono text-white/60 uppercase">Destinations (Multiple)</label>
+                {/* Destinations with SimpleMaps Autocomplete */}
+                <div className="relative space-y-1 col-span-12 sm:col-span-6 lg:col-span-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-mono text-white/60 uppercase">Destinations (50k+ World Cities)</label>
+                    <span className="text-[9px] text-[#06B6D4] font-mono">SimpleMaps DB</span>
+                  </div>
                   <input
                     type="text"
                     value={destinationsInput}
-                    onChange={(e) => setDestinationsInput(e.target.value)}
+                    onChange={(e) => handleDestinationChange(e.target.value)}
+                    onFocus={() => {
+                      const parts = destinationsInput.split(',');
+                      const token = parts[parts.length - 1];
+                      if (token && token.trim().length >= 2) {
+                        fetchCitySuggestions(token, setCitySuggestions, setShowCityDropdown);
+                      }
+                    }}
                     placeholder="e.g. Tokyo, Seoul, Bali"
                     className="w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-white/15 text-xs text-white focus:outline-none focus:border-[#A855F7]"
                   />
+                  {showCityDropdown && citySuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl bg-[#0a0a14]/95 border border-white/20 shadow-2xl backdrop-blur-xl max-h-48 overflow-y-auto divide-y divide-white/10">
+                      {citySuggestions.map((c, idx) => (
+                        <button
+                          key={c.cityId || idx}
+                          type="button"
+                          onClick={() => selectDestinationSuggestion(c)}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-[#A855F7]/20 flex items-center justify-between transition-colors"
+                        >
+                          <div>
+                            <span className="font-semibold text-white">{c.city}</span>
+                            {c.adminName && c.adminName !== c.city && (
+                              <span className="text-white/40 text-[10px] ml-1">({c.adminName})</span>
+                            )}
+                            <span className="text-[#06B6D4] text-[11px] ml-1.5">{c.country}</span>
+                          </div>
+                          {c.population > 0 && (
+                            <span className="text-[10px] font-mono text-white/40">
+                              {(c.population > 1000000) ? (c.population / 1000000).toFixed(1) + 'M' : (c.population / 1000).toFixed(0) + 'k'}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Starting From */}
-                <div className="space-y-1 col-span-6 sm:col-span-3 lg:col-span-2">
+                {/* Starting From with SimpleMaps Autocomplete */}
+                <div className="relative space-y-1 col-span-6 sm:col-span-3 lg:col-span-2">
                   <label className="text-[11px] font-mono text-white/60 uppercase">Starting From</label>
                   <input
                     type="text"
                     value={startingLocation}
-                    onChange={(e) => setStartingLocation(e.target.value)}
+                    onChange={(e) => handleOriginChange(e.target.value)}
                     placeholder="e.g. London, New York"
                     className="w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-white/15 text-xs text-white focus:outline-none focus:border-[#A855F7]"
                   />
+                  {showOriginDropdown && originSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl bg-[#0a0a14]/95 border border-white/20 shadow-2xl backdrop-blur-xl max-h-48 overflow-y-auto divide-y divide-white/10">
+                      {originSuggestions.map((c, idx) => (
+                        <button
+                          key={c.cityId || idx}
+                          type="button"
+                          onClick={() => selectOriginSuggestion(c)}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-[#06B6D4]/20 flex items-center justify-between transition-colors"
+                        >
+                          <div>
+                            <span className="font-semibold text-white">{c.city}</span>
+                            <span className="text-[#A855F7] text-[11px] ml-1.5">{c.country}</span>
+                          </div>
+                          {c.population > 0 && (
+                            <span className="text-[10px] font-mono text-white/40">
+                              {(c.population > 1000000) ? (c.population / 1000000).toFixed(1) + 'M' : (c.population / 1000).toFixed(0) + 'k'}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration */}

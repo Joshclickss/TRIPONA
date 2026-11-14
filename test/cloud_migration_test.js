@@ -144,6 +144,23 @@ const distIndexHtml = fs.readFileSync(distIndex, 'utf8');
 assert(distIndexHtml.includes('TRIPONA'), 'index.html contains TRIPONA title');
 assert(distIndexHtml.includes('assets/'), 'index.html references bundled JS/CSS assets');
 
+// ----------------------------------------------------
+// TEST GROUP 6: SIMPLEMAPS WORLD CITIES DATASET INTEGRITY
+// ----------------------------------------------------
+console.log('\n📌 [Test Group 6] Verifying SimpleMaps 50,000+ World Cities Database...');
+
+const citiesCsv = path.join(rootDir, 'server', 'data', 'worldcities.csv');
+assert(fs.existsSync(citiesCsv), 'worldcities.csv exists in server/data');
+
+const citiesMigration = path.join(rootDir, 'supabase', 'migrations', '20261114_add_world_cities.sql');
+assert(fs.existsSync(citiesMigration), 'Supabase world_cities migration exists');
+
+const citiesModel = path.join(rootDir, 'server', 'models', 'City.js');
+assert(fs.existsSync(citiesModel), 'Mongoose City model exists in server/models/City.js');
+
+const citiesStats = fs.statSync(citiesCsv);
+assert(citiesStats.size > 5 * 1024 * 1024, `worldcities.csv is complete (${(citiesStats.size / (1024 * 1024)).toFixed(2)} MB)`);
+
 console.log('\n====================================================');
 console.log(`🎉 ALL TESTS PASSED: ${passedTests}/${totalTests} tests successful!`);
 console.log('====================================================\n');

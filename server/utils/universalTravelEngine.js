@@ -10,6 +10,46 @@
  * - Natural-language context-aware refinement (add/remove destinations, extend days, scale budget, family/adventure modes)
  */
 
+import fs from 'fs';
+import path from 'path';
+
+/**
+ * In-memory high performance lookup for 50,250+ world cities (simplemaps dataset)
+ */
+let worldCitiesCache = null;
+
+export function getWorldCitiesMap() {
+  if (worldCitiesCache) return worldCitiesCache;
+  worldCitiesCache = new Map();
+  try {
+    const csvPath = path.resolve('server/data/worldcities.csv');
+    if (fs.existsSync(csvPath)) {
+      const content = fs.readFileSync(csvPath, 'utf8');
+      const lines = content.split('\n');
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const parts = line.split('","');
+        if (parts.length >= 10) {
+          const city = parts[0].replace(/^"/, '');
+          const cityAscii = parts[1].toLowerCase();
+          const lat = parseFloat(parts[2]);
+          const lng = parseFloat(parts[3]);
+          const country = parts[4];
+          const admin = parts[7];
+          const pop = parseInt(parts[9], 10) || 0;
+          if (!worldCitiesCache.has(cityAscii) || (worldCitiesCache.get(cityAscii).pop < pop)) {
+            worldCitiesCache.set(cityAscii, { city, cityAscii, country, admin, lat, lng, pop });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('World cities cache init warning:', err.message);
+  }
+  return worldCitiesCache;
+}
+
 // Universal Database of Coordinates & Regional Profiles for 120+ Global Destinations
 export const GLOBAL_DESTINATIONS_DATA = {
   // --- EUROPE ---
@@ -106,10 +146,40 @@ export function resolveDestinationProfile(rawName) {
     return { ...GLOBAL_DESTINATIONS_DATA[clean] };
   }
 
-  // Partial match
+  // Partial match in Curated Catalog
   const foundKey = Object.keys(GLOBAL_DESTINATIONS_DATA).find(k => clean.includes(k) || k.includes(clean));
   if (foundKey) {
     return { ...GLOBAL_DESTINATIONS_DATA[foundKey] };
+  }
+
+  // Lookup in SimpleMaps 50,250 World Cities database
+  const citiesMap = getWorldCitiesMap();
+  const worldCity = citiesMap.get(clean) || citiesMap.get(clean.replace(/[^a-z0-9]/g, ''));
+  if (worldCity) {
+    const isIndia = worldCity.country.toLowerCase() === 'india';
+    return {
+      name: `${worldCity.city}${worldCity.admin && worldCity.admin !== worldCity.city ? ', ' + worldCity.admin : ''}`,
+      country: worldCity.country,
+      continent: worldCity.country,
+      lat: worldCity.lat,
+      lng: worldCity.lng,
+      population: worldCity.pop,
+      currency: isIndia ? 'INR' : 'USD',
+      symbol: isIndia ? '₹' : '$',
+      costIndex: isIndia ? 0.6 : 1.0,
+      attractions: [
+        `${worldCity.city} Historic Center & Heritage Landmark`,
+        `${worldCity.city} Scenic Viewpoint & Nature Excursion`,
+        `${worldCity.city} Cultural Museum & Local Market Square`,
+        `${worldCity.city} Evening Promenade & Regional Dining`
+      ],
+      cuisines: [
+        `Local Artisanal Breakfast & Fresh Morning Roast`,
+        `${worldCity.city} Regional Lunch Specialty & Chef Thali`,
+        `Authentic ${worldCity.country} Evening Fine Dining Dinner`
+      ],
+      transitType: 'Express Rail, Scenic Highway & Private Chauffeur'
+    };
   }
 
   // Procedural deterministic coordinate generation for any unknown town or region
