@@ -31,19 +31,7 @@ export function getAuthHeader() {
  * Routes seamlessly between Supabase Edge Functions and Local Express backend
  */
 export async function apiRequest(endpoint, options = {}) {
-  let targetUrl = endpoint;
-
-  // If Supabase is configured and calling supported edge endpoints, route to Edge Functions
-  if (isSupabaseConfigured && supabaseUrl) {
-    if (endpoint.startsWith('/api/ai/plan-trip')) {
-      targetUrl = `${supabaseUrl}/functions/v1/plan-trip`;
-    } else if (endpoint.startsWith('/api/intelligence/destination')) {
-      const query = endpoint.split('?')[1] || '';
-      targetUrl = `${supabaseUrl}/functions/v1/intelligence${query ? '?' + query : ''}`;
-    } else if (endpoint.startsWith('/api/services/categories')) {
-      targetUrl = `${supabaseUrl}/functions/v1/services-explorer`;
-    }
-  }
+  const targetUrl = endpoint;
 
   const headers = {
     'Content-Type': 'application/json',
