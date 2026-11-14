@@ -206,14 +206,7 @@ export const AuthProvider = ({ children }) => {
 
       // Also sync into Supabase PostgreSQL profiles table
       if (isSupabaseConfigured) {
-        supabase.from('profiles').upsert({
-          id: fbUser.uid,
-          email: fbUser.email,
-          name: trimmedName,
-          photo_url: newUser.photoURL,
-          role: 'user',
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).then(() => {}).catch(e => console.warn('Supabase sync notice:', e));
+        (async () => { try { await supabase.from('profiles').upsert({ id: fbUser.uid, email: fbUser.email, name: trimmedName, photo_url: newUser.photoURL, role: 'user', updated_at: new Date().toISOString() }, { onConflict: 'id' }); } catch(e) { console.warn('Supabase sync notice:', e); } })();
       }
 
       await syncUserWithBackend(newUser, idToken);
@@ -262,14 +255,7 @@ export const AuthProvider = ({ children }) => {
       };
 
       if (isSupabaseConfigured) {
-        supabase.from('profiles').upsert({
-          id: fbUser.uid,
-          email: fbUser.email,
-          name: loggedName,
-          photo_url: loggedUser.photoURL,
-          role: 'user',
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).then(() => {}).catch(e => console.warn('Supabase sync notice:', e));
+        (async () => { try { await supabase.from('profiles').upsert({ id: fbUser.uid, email: fbUser.email, name: loggedName, photo_url: loggedUser.photoURL, role: 'user', updated_at: new Date().toISOString() }, { onConflict: 'id' }); } catch(e) { console.warn('Supabase sync notice:', e); } })();
       }
 
       await syncUserWithBackend(loggedUser, idToken);
@@ -338,12 +324,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (isSupabaseConfigured && user?.uid) {
-      supabase.from('profiles').update({
-        name: updates.name,
-        country: updates.country,
-        currency: updates.currency,
-        updated_at: new Date().toISOString()
-      }).eq('id', user.uid).then(() => {}).catch(() => {});
+      (async () => { try { await supabase.from('profiles').update({ name: updates.name, country: updates.country, currency: updates.currency, updated_at: new Date().toISOString() }).eq('id', user.uid); } catch(e) {} })();
     }
 
     try {
