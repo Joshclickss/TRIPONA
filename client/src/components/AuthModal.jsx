@@ -13,8 +13,17 @@ export default function AuthModal({ isOpen, onClose }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isForgotPass, setIsForgotPass] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(null); // { name, isNew }
 
   if (!isOpen) return null;
+
+  const triggerSuccess = (displayName, isNew = false) => {
+    setLoginSuccess({ name: displayName, isNew });
+    setTimeout(() => {
+      setLoginSuccess(null);
+      onClose();
+    }, 2000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,20 +60,14 @@ export default function AuthModal({ isOpen, onClose }) {
         }
         const res = await register(name.trim(), email.trim(), password);
         if (res.success) {
-          setMessage(`✨ Welcome ${name.trim()}! Your account has been created.`);
-          setTimeout(() => {
-            onClose();
-          }, 1200);
+          triggerSuccess(name.trim(), true);
         } else {
           setError(res.error || 'Registration failed. Please check your details.');
         }
       } else {
         const res = await login(email.trim(), password);
         if (res.success) {
-          setMessage('Signed in successfully!');
-          setTimeout(() => {
-            onClose();
-          }, 1000);
+          triggerSuccess(res.user?.name || email.split('@')[0]);
         } else {
           setError(res.error || 'Incorrect email or password.');
         }
@@ -83,10 +86,7 @@ export default function AuthModal({ isOpen, onClose }) {
     try {
       const res = await loginWithGoogle();
       if (res?.success) {
-        setMessage('Signed in with Google!');
-        setTimeout(() => {
-          onClose();
-        }, 1000);
+        triggerSuccess(res.user?.name || 'Voyager');
       } else if (res?.error) {
         setError(res.error);
       }
@@ -96,6 +96,55 @@ export default function AuthModal({ isOpen, onClose }) {
       setLoading(false);
     }
   };
+
+  // ✅ Success Animation Screen
+  if (loginSuccess) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div className="relative w-full max-w-md rounded-3xl p-10 bg-[#0d0d14] border border-white/20 shadow-[0_25px_80px_rgba(0,0,0,0.95),0_0_60px_rgba(168,85,247,0.4)] flex flex-col items-center text-center"
+          style={{ animation: 'fadeSlideUp 0.4s ease-out' }}>
+          <style>{`
+            @keyframes fadeSlideUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+            @keyframes popIn { 0% { transform:scale(0); opacity:0; } 60% { transform:scale(1.2); } 100% { transform:scale(1); opacity:1; } }
+            @keyframes ringPulse { 0%,100% { box-shadow:0 0 0 0 rgba(168,85,247,0.6); } 50% { box-shadow:0 0 0 20px rgba(168,85,247,0); } }
+            @keyframes sparkle { 0%,100%{opacity:0;transform:scale(0) rotate(0deg);} 50%{opacity:1;transform:scale(1) rotate(180deg);} }
+          `}</style>
+
+          {/* Animated ring + checkmark */}
+          <div className="relative mb-6">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-orange-400 flex items-center justify-center"
+              style={{ animation: 'ringPulse 1.5s ease-in-out infinite' }}>
+              <div className="w-20 h-20 rounded-full bg-[#0d0d14] flex items-center justify-center">
+                <Check size={40} className="text-green-400" strokeWidth={3}
+                  style={{ animation: 'popIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.2s both' }} />
+              </div>
+            </div>
+            {/* Sparkles */}
+            {['-top-2 -right-1','top-0 -left-3','-bottom-1 right-0'].map((pos, i) => (
+              <Sparkles key={i} size={16} className="absolute text-yellow-400"
+                style={{ [pos.split(' ')[0].replace('-','')]: pos.split('-')[pos.split(' ')[0].startsWith('-') ? 1 : 0].replace(/\D/g,'')+'px',
+                  animation: `sparkle 1s ease-in-out ${i * 0.2}s infinite` }} />
+            ))}
+          </div>
+
+          <h2 className="text-2xl font-bold text-white mb-1">
+            {loginSuccess.isNew ? '🎉 Account Created!' : '✈️ Welcome Back!'}
+          </h2>
+          <p className="text-purple-300 font-medium text-lg mb-1">{loginSuccess.name}</p>
+          <p className="text-white/50 text-sm">
+            {loginSuccess.isNew ? 'Your TRIPONA journey begins now' : 'Ready to plan your next adventure?'}
+          </p>
+
+          {/* Progress bar */}
+          <div className="w-full mt-6 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 rounded-full"
+              style={{ animation: 'progressBar 2s linear forwards' }} />
+          </div>
+          <style>{`@keyframes progressBar { from{width:0%} to{width:100%} }`}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
