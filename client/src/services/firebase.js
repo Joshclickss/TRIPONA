@@ -8,7 +8,9 @@ import {
   signOut, 
   sendPasswordResetEmail,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  signInWithRedirect,
+  getRedirectResult
 } from 'firebase/auth';
 
 // Real Firebase configuration for TRIPONA
@@ -45,5 +47,7 @@ export {
   sendPasswordResetEmail,
   onAuthStateChanged,
   updateProfile,
+  signInWithRedirect,
+  getRedirectResult,
   firebaseConfig
 };
