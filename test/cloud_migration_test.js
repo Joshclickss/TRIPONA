@@ -223,6 +223,28 @@ const fxResult = await currencyAdapter.convert(100, 'USD', 'EUR');
 assert(fxResult.convertedAmount > 0, 'Frankfurter / FX conversion returns positive converted amount');
 assert(fxResult.verificationStatus === 'VERIFIED_LIVE' || fxResult.verificationStatus === 'ESTIMATED_STATISTICAL', 'FX status is verified');
 
+// ----------------------------------------------------
+// TEST GROUP 9: SUPABASE EDGE FUNCTIONS & CLOUD ARCHITECTURE
+// ----------------------------------------------------
+console.log('\n📌 [Test Group 9] Verifying Supabase Edge Functions & Master Cloud Schema...');
+
+const masterSql = path.join(rootDir, 'supabase', 'migrations', '20261114_master_tripona.sql');
+assert(fs.existsSync(masterSql), 'Master unified migration 20261114_master_tripona.sql exists');
+
+const edgePlanTrip = path.join(rootDir, 'supabase', 'functions', 'plan-trip', 'index.ts');
+assert(fs.existsSync(edgePlanTrip), 'Edge Function plan-trip/index.ts exists');
+
+const edgeIntel = path.join(rootDir, 'supabase', 'functions', 'intelligence', 'index.ts');
+assert(fs.existsSync(edgeIntel), 'Edge Function intelligence/index.ts exists');
+
+const edgeServices = path.join(rootDir, 'supabase', 'functions', 'services-explorer', 'index.ts');
+assert(fs.existsSync(edgeServices), 'Edge Function services-explorer/index.ts exists');
+
+const clientGitignore = path.join(rootDir, 'client', '.gitignore');
+assert(fs.existsSync(clientGitignore), 'client/.gitignore protects secret env vars');
+const gitignoreContent = fs.readFileSync(clientGitignore, 'utf8');
+assert(gitignoreContent.includes('.env'), 'client/.gitignore explicitly ignores .env files');
+
 console.log('\n====================================================');
 console.log(`🎉 ALL TESTS PASSED: ${passedTests}/${totalTests} tests successful!`);
 console.log('====================================================\n');

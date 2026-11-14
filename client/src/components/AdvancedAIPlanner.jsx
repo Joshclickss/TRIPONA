@@ -37,6 +37,7 @@ import { useAuth } from '../context/AuthContext';
 import { useBooking } from '../context/BookingContext';
 import TripRouteMap from './TripRouteMap';
 import { exportTripToPdf } from '../utils/exportPdf';
+import { apiRequest } from '../services/api';
 
 const UNIVERSAL_PROMPT_SUGGESTIONS = [
   {
@@ -228,9 +229,8 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
         ? destinationsInput.split(/[,&+]|\band\b/i).map(s => s.trim()).filter(Boolean)
         : [];
 
-      const res = await fetch('/api/ai/plan-trip', {
+      const tripData = await apiRequest('/api/ai/plan-trip', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: promptToSend,
           destinations: destList.length > 0 ? destList : undefined,
@@ -243,10 +243,9 @@ export default function AdvancedAIPlanner({ initialDestination = '' }) {
         })
       });
 
-      if (!res.ok) throw new Error('AI Planner service error');
-
-      const tripData = await res.json();
-      setCurrentTrip(tripData);
+      // Handle format whether wrapped in { success, plan } from edge or direct object
+      const resolvedPlan = tripData?.plan || tripData;
+      setCurrentTrip(resolvedPlan);
       showToast('✨ Universal Masterplan generated successfully!');
     } catch (err) {
       console.error('AI Planner error:', err);

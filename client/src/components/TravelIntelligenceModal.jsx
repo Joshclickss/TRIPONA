@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiRequest } from '../services/api';
 import { 
   X, 
   Search, 
@@ -51,9 +52,7 @@ export default function TravelIntelligenceModal({ isOpen, onClose, initialDestin
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/intelligence/destination?city=${encodeURIComponent(cityName)}&currency=${currency}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch travel intelligence`);
-      const data = await res.json();
+      const data = await apiRequest(`/api/intelligence/destination?city=${encodeURIComponent(cityName)}&currency=${currency}`);
       setDossier(data);
       setCalculatedBudget(data.calculatedBudget);
       setActiveCity(data.destination.name);

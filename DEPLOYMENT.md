@@ -1,65 +1,95 @@
-# TRIPONA Cloud Deployment & Migration Guide
-## Cloudflare Pages (Frontend) + Supabase (Database, Auth & Storage)
+# TRIPONA — Complete Free Cloud Deployment Guide
+## Architecture: Cloudflare Pages (Frontend) + Supabase (Database, Auth, Storage & Edge Functions)
 
-This guide provides end-to-end instructions for deploying TRIPONA to free-tier cloud infrastructure.
+This guide provides the complete, production-grade instructions to deploy **TRIPONA** to 100% free cloud infrastructure with zero ongoing server costs.
 
 ---
 
 ### Architecture Overview
 
-- **Frontend Hosting:** Cloudflare Pages (Free, Global Edge CDN, Unlimited Bandwidth, Free SSL/HTTPS)
-- **Database:** Supabase PostgreSQL (Free tier, 500MB DB, automated backups)
-- **Authentication:** Supabase Auth (Free tier, 50,000 monthly active users, Email/Password + OAuth)
-- **File Storage:** Supabase Storage (Free tier, 1GB storage, public & private buckets)
-- **Security:** PostgreSQL Row Level Security (RLS) on every table + JWT verification
+```mermaid
+flowchart TD
+    User["Global Traveler / Browser"] -->|HTTPS Edge Anycast| CF["Cloudflare Pages (Free Plan)\nGlobal Edge CDN • Unlimited Bandwidth\nClient-Side SPA Routing via _redirects"]
+    
+    subgraph SupabaseCloud ["Supabase Free Plan (Cloud Backend)"]
+        EdgePlan["Edge Function: plan-trip\n(Serverless AI Itinerary Engine)"]
+        EdgeIntel["Edge Function: intelligence\n(Frankfurter ECB FX • Open-Meteo • OSM)"]
+        EdgeSrv["Edge Function: services-explorer\n(9-Category Travel GDS & Availability)"]
+        Auth["Supabase Auth (JWT • OAuth • 50k MAU)"]
+        DB[("PostgreSQL 15 (RLS • Triggers • 500MB)")]
+        Storage["Supabase Storage (1GB Free)\ntripona-media (Public) • tripona-vouchers (Private)"]
+    end
+
+    CF -->|Direct DB Queries with RLS| DB
+    CF -->|Session & Profile Sync| Auth
+    CF -->|Photo Uploads & Vouchers| Storage
+    CF -->|POST /functions/v1/plan-trip| EdgePlan
+    CF -->|GET /functions/v1/intelligence| EdgeIntel
+    CF -->|GET /functions/v1/services-explorer| EdgeSrv
+```
 
 ---
 
-## Step 1: Set Up Supabase Project (Free Tier)
+## 1. Supabase Cloud Setup (Free Plan)
 
-1. Navigate to [https://supabase.com](https://supabase.com) and sign in / create a free account.
-2. Click **New Project**:
+### Step 1.1: Create Project
+1. Log in to [https://supabase.com](https://supabase.com) and create an organization / account.
+2. Click **New project**:
    - **Name:** `tripona-cloud`
-   - **Database Password:** Choose a secure password (save it safely)
-   - **Region:** Choose the region closest to your primary audience (e.g., `Singapore`, `Frankfurt`, or `US East`)
-   - **Pricing Plan:** Free
-3. Once the project finishes provisioning (takes ~1-2 minutes):
-   - Go to **Project Settings** → **API**.
-   - Copy the **Project URL** (`https://<project-id>.supabase.co`).
-   - Copy the **anon public API Key** (`eyJ...`).
+   - **Database Password:** Enter a strong password (save it in a password manager).
+   - **Region:** Select the region closest to your primary user base (e.g., `Singapore`, `Frankfurt`, or `US East`).
+   - **Plan:** Free ($0/month).
+3. Once provisioned (~90 seconds), navigate to **Project Settings** → **API**:
+   - Copy **Project URL** (e.g. `https://xyzcompany.supabase.co`).
+   - Copy **Project API Key (anon/public)**.
+   - Note the **Project Ref ID** (the unique string in your URL: `xyzcompany`).
 
 ---
 
-## Step 2: Apply Database Schema & Seed Data
-
-1. In your Supabase Dashboard, click on **SQL Editor** in the left sidebar.
+### Step 1.2: Execute Master Database Migration
+1. In the Supabase Dashboard, click on **SQL Editor** in the left sidebar.
 2. Click **New query**.
-3. Open [`supabase/migrations/20261114_init_tripona.sql`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/supabase/migrations/20261114_init_tripona.sql) in your code editor, copy its entire contents, paste them into the SQL editor, and click **Run**.
-   - This creates all 8 core tables: `profiles`, `destinations`, `saved_destinations`, `trips`, `bookings`, `expenses`, `checklists`, `conversations`.
-   - Enables Row Level Security (RLS) on all tables with zero data leakage.
-   - Sets up automatic profile creation on user signup.
-4. Click **New query** again.
-5. Open [`supabase/seed.sql`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/supabase/seed.sql), copy its contents, paste them into the SQL editor, and click **Run**.
-   - This seeds the 12 worldwide curated destinations into PostgreSQL.
+3. Open [`supabase/migrations/20261114_master_tripona.sql`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/supabase/migrations/20261114_master_tripona.sql), copy its entire contents, paste them into the SQL editor, and click **Run**.
+   - This single script creates:
+     - 11 production tables with primary keys, foreign keys, and indexes: `profiles`, `destinations`, `world_cities`, `saved_destinations`, `trips`, `bookings`, `expenses`, `checklists`, `conversations`, `travel_intelligence_cache`, `api_cache`.
+     - Row Level Security (RLS) on all 11 tables with zero public data leakage.
+     - Auto-profile trigger (`on_auth_user_created`) and timestamp triggers.
+     - Storage buckets: `tripona-media` (public) and `tripona-vouchers` (private).
+4. Click **New query** again, paste the contents of [`supabase/seed.sql`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/supabase/seed.sql), and click **Run**.
+   - Populates the 12 worldwide curated destinations.
 
 ---
 
-## Step 3: Verify Supabase Storage Buckets
+### Step 1.3: Deploy Supabase Edge Functions (Serverless Backend)
+All server-side secrets (like `GEMINI_API_KEY`) remain strictly on the backend.
 
-The migration script creates the required storage buckets automatically:
-- `tripona-media` (Public bucket for destination photos, trip covers, avatars)
-- `tripona-vouchers` (Private bucket for booking receipts and travel passes)
-
-To verify:
-1. In the Supabase Dashboard, open **Storage**.
-2. Confirm `tripona-media` and `tripona-vouchers` are listed.
+1. Install Supabase CLI (if not already installed):
+   ```bash
+   npm install -g supabase
+   ```
+2. Log in and link your project:
+   ```bash
+   supabase login
+   supabase link --project-ref <your-project-ref>
+   ```
+3. Set your secret environment variables in Supabase:
+   ```bash
+   supabase secrets set GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+4. Deploy all 3 edge functions:
+   ```bash
+   supabase functions deploy plan-trip --no-verify-jwt
+   supabase functions deploy intelligence --no-verify-jwt
+   supabase functions deploy services-explorer --no-verify-jwt
+   ```
+   *Your live backend edge functions are now accessible at `https://<your-project-ref>.supabase.co/functions/v1/...`.*
 
 ---
 
-## Step 4: Deploy to Cloudflare Pages (Free Tier)
+## 2. Cloudflare Pages Deployment (Free Plan)
 
-### Method A: Direct GitHub Integration (Recommended)
-1. Go to [https://dash.cloudflare.com](https://dash.cloudflare.com) and select **Workers & Pages**.
+### Method A: Automated GitHub Continuous Deployment (Recommended)
+1. Go to [https://dash.cloudflare.com](https://dash.cloudflare.com) and click **Workers & Pages**.
 2. Click **Create Application** → **Pages** → **Connect to Git**.
 3. Select your GitHub repository: `Joshclickss/TRIPONA`.
 4. Configure Build Settings:
@@ -68,12 +98,13 @@ To verify:
    - **Build command:** `npm run build`
    - **Build output directory:** `dist`
 5. Under **Environment variables (Advanced)**, add:
-   - `VITE_SUPABASE_URL` = your Supabase Project URL (`https://<project-id>.supabase.co`)
-   - `VITE_SUPABASE_ANON_KEY` = your Supabase `anon` public key
+   - `VITE_SUPABASE_URL` = `https://<your-project-ref>.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY` = `<your-supabase-anon-public-key>`
 6. Click **Save and Deploy**.
-7. Cloudflare Pages will build the site and deploy it to a free `*.pages.dev` domain with free SSL.
+7. Cloudflare Pages automatically compiles the project in ~45 seconds and gives you a free live production URL:
+   `https://tripona.pages.dev` (with instant global SSL/HTTPS).
 
-### Method B: Wrangler CLI
+### Method B: Deploy via Wrangler CLI
 ```bash
 cd client
 npm run build
@@ -82,36 +113,26 @@ npx wrangler pages deploy dist --project-name tripona
 
 ---
 
-## Step 5: Client-Side Routing (SPA)
+## 3. Client-Side SPA Routing & Asset Caching
 
 Cloudflare Pages automatically reads the included file [`client/public/_redirects`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/client/public/_redirects):
 ```
 /*    /index.html   200
 ```
-This ensures seamless browser navigation and refreshes without 404 errors.
+- Ensures browser refreshes on any route (e.g. `/trips`, `/bookings`, `/intelligence`) work seamlessly with zero 404 errors.
 
 ---
 
-## Step 6: Local Data Migration Utility
+## 4. Local Development & Testing Connected to Cloud
 
-TRIPONA includes an automated migration utility [`client/src/services/migrationService.js`](file:///Users/joshuathomas/Documents/Antigravity%20project/TRIPONA/client/src/services/migrationService.js) to migrate local browser data:
-- **Inspect:** `migrationService.inspectLocalData()` inspects locally cached trips, bookings, and preferences.
-- **Export Backup:** `migrationService.exportBackup()` downloads a validated JSON backup.
-- **Migrate to Cloud:** `migrationService.migrateToCloud(userId)` safely upserts local records to Supabase with duplicate detection.
-
----
-
-## Step 7: Local Development with Cloud Backend
-
-To test locally connected to your live Supabase database:
-1. Create `client/.env`:
+1. Create or update `client/.env`:
    ```bash
-   VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
-   VITE_SUPABASE_ANON_KEY=<your-anon-key>
+   VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<your-supabase-anon-key>
    ```
-2. Start the dev server:
+2. Start the local client server:
    ```bash
    cd client
    npm run dev
    ```
-3. Open [http://localhost:5173](http://localhost:5173). All user profiles, trips, and bookings will now sync in real-time with your Supabase PostgreSQL cloud database.
+3. Open [http://localhost:5173](http://localhost:5173). The application will automatically route authenticated operations and queries to your live cloud infrastructure.
